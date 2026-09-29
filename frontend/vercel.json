@@ -1,0 +1,68 @@
+{
+  "_comment": "Ported from careeraipro.com's vercel.json — the security headers and cache policy are already proven in production there. Only the rewrite target and domain rules differ.",
+
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/frontend/browser",
+  "cleanUrls": true,
+  "trailingSlash": false,
+
+  "rewrites": [
+    {
+      "_comment": "Anything without a file extension is an Angular route, not a missing file.",
+      "source": "/((?!.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ],
+
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" }
+      ]
+    },
+    {
+      "_comment": "Service worker must never be cached, or users get stuck on an old app during the nine nights when you are shipping fixes hourly.",
+      "source": "/ngsw-worker.js",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+    },
+    {
+      "source": "/ngsw.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    },
+    {
+      "_comment": "Hashed filenames — safe to cache forever.",
+      "source": "/(.*)\\.(js|css)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/(.*)\\.(png|jpg|jpeg|gif|svg|ico|webp)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000, immutable" }]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400" }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    }
+  ]
+}
