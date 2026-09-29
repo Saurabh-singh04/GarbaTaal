@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [saurabh, main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  backend:
+    name: Backend — build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - run: dotnet restore
+      - run: dotnet build --no-restore -c Release
+      - run: dotnet test --no-build -c Release --logger "console;verbosity=normal"
+
+  database:
+    name: Database — migrations & RLS
+    runs-on: ubuntu-latest
+    # Every migration is applied to a real Postgres, and the RLS suite proves
+    # one user cannot read another's rows. An RLS mistake is a full data breach
+    # and it is a one-line error, so it is gated here rather than reviewed by eye.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply auth stub + migrations
+        env:
+          PGPASSWORD: test
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q \
+            -f supabase/test/00_auth_stub.sql
+          for f in supabase/migrations/*.sql; do
+            echo "→ $f"
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Assert RLS is enabled on every table
+        env:
+          PGPASSWORD: test
+        run: |
+          MISSING=$(psql -h localhost -U postgres -d postgres -tAc "
+            select tablename from pg_tables
+             where schemaname = 'public'
+               and tablename not in (select relname from pg_class where relrowsecurity);")
+          if [ -n "$MISSING" ]; then
+            echo "::error::Tables without RLS: $MISSING"
+            exit 1
+          fi
+          echo "All public tables have RLS enabled."
+
+      - name: Run RLS policy tests
+        env:
+          PGPASSWORD: test
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -f supabase/test/01_rls_tests.sql
+
+  frontend:
+    name: Frontend — build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test -- --watch=false --browsers=ChromeHeadless

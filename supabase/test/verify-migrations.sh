@@ -39,6 +39,10 @@ run "$ROOT/supabase/test/00_auth_stub.sql"
 for f in "$ROOT"/supabase/migrations/*.sql; do run "$f"; done
 
 echo
+echo "→ running RLS policy tests"
+docker exec -i "$NAME" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "$ROOT/supabase/test/01_rls_tests.sql"
+
+echo
 echo "→ sanity checks"
 docker exec -i "$NAME" psql -U postgres -d postgres -q <<'SQL'
 \echo '  tables:'
