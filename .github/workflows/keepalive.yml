@@ -1,0 +1,35 @@
+name: Keep-alive (year-round)
+
+# ─────────────────────────────────────────────────────────────────────────
+# WHY THIS EXISTS — read before deleting it.
+#
+# Supabase PAUSES free projects after ~7 days of inactivity, and Render spins
+# free services down. GarbaTaal is dead for ~355 days a year. Without this,
+# you come back next September to a paused project and a cold deploy.
+#
+# This is the cheapest insurance in the repo: one query, once a week, forever.
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'        # every Monday 06:00 UTC (11:30 IST)
+  workflow_dispatch:            # and on demand, so you can prove it works
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Touch Supabase (prevents auto-pause)
+        run: |
+          curl -sS -f \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/cities?select=id&limit=1" \
+            > /dev/null
+          echo "Supabase responded."
+
+      - name: Touch the API (keeps the free host from going stale)
+        continue-on-error: true    # the API sleeping is fine; the DB pausing is not
+        run: |
+          curl -sS -m 90 "${{ secrets.API_BASE_URL }}/health" || true
+          echo "API pinged."

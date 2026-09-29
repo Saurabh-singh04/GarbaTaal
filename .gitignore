@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────
+# SECRETS — never commit these. Everything else is recoverable.
+# ─────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+appsettings.Local.json
+appsettings.Production.json
+supabase/.temp/
+supabase/.branches/
+
+# ── .NET ──
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+publish/
+*.user
+*.suo
+.vs/
+
+# ── Angular / Node ──
+node_modules/
+dist/
+.angular/
+*.tsbuildinfo
+npm-debug.log*
+
+# ── Editors / OS ──
+.vscode/*
+!.vscode/extensions.json
+.idea/
+Thumbs.db
+.DS_Store
+
+# ── Build artifacts ──
+coverage/
+*.log

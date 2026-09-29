@@ -1,0 +1,52 @@
+name: Festival jobs (Navratri only)
+
+# ─────────────────────────────────────────────────────────────────────────
+# These only run 11–20 October — the nine nights plus a day either side.
+# GitHub cron is UTC; IST is UTC+5:30.
+#
+# The deck rebuild is what lets discovery work while the .NET container is
+# asleep: scoring happens here, three times a night, and the app only ever
+# reads the precomputed rows.
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: '30 11 11-20 10 *'      # 17:00 IST — full rebuild before the rush
+    - cron: '30 14 11-20 10 *'      # 20:00 IST — incremental, catches new signups
+    - cron: '30 16 11-20 10 *'      # 22:00 IST — incremental, catches the late crowd
+    - cron: '*/30 * 11-20 10 *'     # every 30 min — payment reconciliation
+  workflow_dispatch:
+
+jobs:
+  deck-rebuild:
+    # Only on the three named times, not on the half-hourly reconcile tick.
+    if: github.event.schedule != '*/30 * 11-20 10 *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the API and rebuild decks
+        run: |
+          # First call may cold-start the free host — allow for it.
+          curl -sS -m 120 "${{ secrets.API_BASE_URL }}/health" || true
+          curl -sS -f -m 300 -X POST \
+            -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}" \
+            "${{ secrets.API_BASE_URL }}/jobs/rebuild-decks"
+
+      - name: Expire stale requests
+        run: |
+          curl -sS -f -m 120 -X POST \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/rpc/expire_old_requests"
+
+  reconcile-payments:
+    if: github.event.schedule == '*/30 * 11-20 10 *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sweep orders stuck in 'created' against Razorpay
+        # The webhook is the source of truth, but a webhook can be missed.
+        # This is the net that stops someone paying ₹99 and getting nothing.
+        run: |
+          curl -sS -m 180 -X POST \
+            -H "Authorization: Bearer ${{ secrets.JOB_TOKEN }}" \
+            "${{ secrets.API_BASE_URL }}/jobs/reconcile-payments" || true

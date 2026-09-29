@@ -1,0 +1,43 @@
+name: Nightly backup
+
+# ─────────────────────────────────────────────────────────────────────────
+# Free tiers do not guarantee backups you can actually restore from.
+# During the festival the database holds paid entitlements and private
+# messages — losing it is not recoverable by rebuilding from code.
+#
+# Runs nightly in October, and monthly the rest of the year.
+# ─────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: '0 20 1-31 10 *'   # 01:30 IST nightly through October
+    - cron: '0 20 1 * *'       # 1st of every other month
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install postgres client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Dump database
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          STAMP=$(date +%Y%m%d-%H%M)
+          pg_dump \
+            --host="${{ secrets.SUPABASE_DB_HOST }}" \
+            --port=5432 \
+            --username="${{ secrets.SUPABASE_DB_USER }}" \
+            --dbname=postgres \
+            --no-owner --no-acl --format=custom \
+            --file="garbataal-$STAMP.dump"
+          ls -lh *.dump
+
+      - name: Store as a private artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: '*.dump'
+          retention-days: 30
