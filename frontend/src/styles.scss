@@ -1,1 +1,196 @@
-/* You can add global styles to this file, and also import other style files */
+/* ═══════════════════════════════════════════════════════════════════════════
+   GarbaTaal — design tokens
+   Warm festival palette. Deep indigo night + marigold, which reads as Navratri
+   without the neon-pink "dating app" signal the positioning avoids.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg:            #fffaf3;
+  --surface:       #ffffff;
+  --surface-alt:   #fdf3e3;
+  --border:        #ecdfc9;
+
+  --text:          #1d1526;
+  --text-muted:    #6b5f74;
+
+  --primary:       #c2410c;   /* marigold / kesari */
+  --primary-hover: #9a3412;
+  --primary-soft:  #fff1e6;
+
+  --accent:        #4c1d95;   /* indigo night */
+  --success:       #15803d;
+  --danger:        #b91c1c;
+
+  --radius:        14px;
+  --radius-sm:     10px;
+  --shadow:        0 1px 2px rgba(29, 21, 38, .06), 0 8px 24px rgba(29, 21, 38, .06);
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans Gujarati', sans-serif;
+}
+
+:root:not([data-theme='light']) {
+  @media (prefers-color-scheme: dark) {
+    --bg:          #16101c;
+    --surface:     #1f1729;
+    --surface-alt: #271d34;
+    --border:      #3a2d4a;
+    --text:        #f6f0ea;
+    --text-muted:  #a99bb5;
+    --primary:     #fb923c;
+    --primary-hover: #fdba74;
+    --primary-soft: #2d1e1a;
+    --accent:      #a78bfa;
+    --shadow:      0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg:          #16101c;
+  --surface:     #1f1729;
+  --surface-alt: #271d34;
+  --border:      #3a2d4a;
+  --text:        #f6f0ea;
+  --text-muted:  #a99bb5;
+  --primary:     #fb923c;
+  --primary-hover: #fdba74;
+  --primary-soft: #2d1e1a;
+  --accent:      #a78bfa;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  /* Phone-first: a 16px gutter, and never a horizontal scrollbar. */
+  overflow-x: hidden;
+}
+
+h1, h2, h3 { line-height: 1.2; margin: 0 0 .5rem; font-weight: 700; }
+h1 { font-size: clamp(1.75rem, 5vw, 2.5rem); }
+h2 { font-size: clamp(1.25rem, 3.5vw, 1.6rem); }
+p  { margin: 0 0 1rem; }
+
+.container {
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ── Controls ──────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  /* 48px min height — a thumb target on a phone in a dark garba ground. */
+  min-height: 48px;
+  padding: .75rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, opacity .15s;
+  width: 100%;
+}
+
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--surface-alt); }
+
+.btn-ghost { background: none; color: var(--text-muted); border: none; }
+
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.field { margin-bottom: 1.25rem; }
+
+.label {
+  display: block;
+  font-size: .875rem;
+  font-weight: 600;
+  margin-bottom: .4rem;
+  color: var(--text);
+}
+
+.hint { font-size: .8125rem; color: var(--text-muted); margin-top: .35rem; }
+
+.input, select.input {
+  width: 100%;
+  min-height: 48px;
+  padding: .7rem .9rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.input:focus-visible,
+.btn:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.input.invalid { border-color: var(--danger); }
+
+.error {
+  color: var(--danger);
+  font-size: .8125rem;
+  margin-top: .35rem;
+}
+
+/* ── Choice chips ──────────────────────────────────────────────────────── */
+
+.chip-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+.chip {
+  min-height: 44px;
+  padding: .55rem 1rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font: inherit;
+  font-size: .9375rem;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
