@@ -18,11 +18,7 @@ export const environment = {
   // Google Identity Services client id — public by design, exactly like
   // ResumeMatcher's environment.ts. It is an identifier, not a secret; the
   // client SECRET never appears in this folder.
-  // TEMPORARY: this is ResumeMatcher's client id, reused to unblock testing.
-  // The Google account chooser will say CareerAI / ResumeMatcher, not
-  // GarbaTaal. Swap for a client from the 'garbataal' project before anyone
-  // outside the team sees it.
-  googleClientId: '703087488750-laqcdu9kfk7p7t4cap9ijkd8tekkaoi5.apps.googleusercontent.com',
+  googleClientId: '356584693843-vdn3egbipvmmtp3gn0n245bq4923bgbq.apps.googleusercontent.com',
 
   apiBaseUrl: 'http://localhost:5000',
 

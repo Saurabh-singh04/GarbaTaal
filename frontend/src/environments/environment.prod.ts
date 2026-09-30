@@ -10,11 +10,7 @@ export const environment = {
   // Google Identity Services client id — public by design, exactly like
   // ResumeMatcher's environment.ts. An identifier, not a secret; the client
   // SECRET never appears in this folder.
-  //
-  // TEMPORARY: ResumeMatcher's client, reused to unblock testing. Google's
-  // account chooser will say CareerAI rather than GarbaTaal. Replace with a
-  // client from the 'garbataal' project before this reaches real users.
-  googleClientId: '703087488750-laqcdu9kfk7p7t4cap9ijkd8tekkaoi5.apps.googleusercontent.com',
+  googleClientId: '356584693843-vdn3egbipvmmtp3gn0n245bq4923bgbq.apps.googleusercontent.com',
 
   apiBaseUrl: 'https://garbataal-api.onrender.com',
 
