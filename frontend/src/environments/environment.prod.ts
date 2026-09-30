@@ -8,17 +8,22 @@ export const environment = {
   supabaseAnonKey: 'sb_publishable_1SclEhGFKeM7CXF5MsB4nA_INMJqHsP',
 
   // Google Identity Services client id — public by design, exactly like
-  // ResumeMatcher's environment.ts. It is an identifier, not a secret; the
-  // client SECRET never appears in this folder.
-  // TEMPORARY: this is ResumeMatcher's client id, reused to unblock testing.
-  // The Google account chooser will say CareerAI / ResumeMatcher, not
-  // GarbaTaal. Swap for a client from the 'garbataal' project before anyone
-  // outside the team sees it.
+  // ResumeMatcher's environment.ts. An identifier, not a secret; the client
+  // SECRET never appears in this folder.
+  //
+  // TEMPORARY: ResumeMatcher's client, reused to unblock testing. Google's
+  // account chooser will say CareerAI rather than GarbaTaal. Replace with a
+  // client from the 'garbataal' project before this reaches real users.
   googleClientId: '703087488750-laqcdu9kfk7p7t4cap9ijkd8tekkaoi5.apps.googleusercontent.com',
 
   apiBaseUrl: 'https://garbataal-api.onrender.com',
 
-  razorpayKeyId: 'rzp_live_xxxxxxxxxx',
+  // PLACEHOLDER — checkout will not open until this is a real key.
+  // Use the rzp_test_ key while Razorpay KYC is pending, and switch to
+  // rzp_live_ only together with the backend's key, never one without the
+  // other: a live backend order opened with a test key fails signature
+  // verification, and the failure looks like the user's card being declined.
+  razorpayKeyId: 'rzp_test_REPLACE_ME',
 
   launchCitySlug: 'all',
 
