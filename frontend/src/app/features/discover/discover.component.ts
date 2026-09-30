@@ -12,6 +12,7 @@ import { isPlatformBrowser, CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { DiscoveryService } from '../../core/services/discovery.service';
 import { ProfileService } from '../../core/services/profile.service';
+import { MatchesService } from '../../core/services/matches.service';
 import {
   DeckCandidate,
   SKILL_LABELS,
@@ -40,6 +41,18 @@ import { maskToNights } from '../../core/utils/nights';
         <span class="festival-pill__dot"></span>
         <span>Navratri 2026</span>
       </div>
+
+      @if (profileService.profile()) {
+        <a routerLink="/matches" class="profile-btn inbox-btn"
+           aria-label="Your requests and matches" title="Your people">
+          <span class="profile-icon">💌</span>
+          @if (matches.pendingCount() > 0) {
+            <span class="inbox-badge" [attr.aria-label]="matches.pendingCount() + ' waiting'">
+              {{ matches.pendingCount() }}
+            </span>
+          }
+        </a>
+      }
 
       <a routerLink="/profile/dance" class="profile-btn" aria-label="My Dance Profile" title="Edit Dance Profile">
         <span class="profile-icon">💃</span>
@@ -482,6 +495,19 @@ import { maskToNights } from '../../core/utils/nights';
       text-decoration: none;
       border: 1px solid #f6eeff22;
       transition: transform .2s;
+    }
+
+    /* Anchors the badge without changing the button's grid centring. */
+    .inbox-btn { position: relative; }
+
+    .inbox-badge {
+      position: absolute; top: -4px; right: -4px;
+      min-width: 16px; height: 16px; padding: 0 4px;
+      border-radius: 999px;
+      background: var(--kesari); color: #fff;
+      font-size: .65rem; font-weight: 700; line-height: 16px;
+      text-align: center;
+      border: 1px solid var(--night);
     }
     .profile-btn:hover { transform: scale(1.08); }
 
@@ -1133,7 +1159,8 @@ import { maskToNights } from '../../core/utils/nights';
 })
 export class DiscoverComponent implements OnInit {
   readonly discovery = inject(DiscoveryService);
-  private readonly profileService = inject(ProfileService);
+  readonly profileService = inject(ProfileService);
+  readonly matches = inject(MatchesService);
   private readonly router = inject(Router);
   private readonly platformId = inject(PLATFORM_ID);
 
@@ -1157,6 +1184,11 @@ export class DiscoverComponent implements OnInit {
   ngOnInit(): void {
     if (!isPlatformBrowser(this.platformId)) return;
     this.discovery.loadDeck();
+
+    // Not awaited: the badge is secondary to the deck, and blocking the first
+    // card on an inbox query would trade the thing people came for against a
+    // number. Signed-out users skip it — RLS returns an empty inbox anyway.
+    if (this.profileService.profile()) void this.matches.load();
   }
 
   // ─── Swipe Gestures ───────────────────────────────────────────────────────

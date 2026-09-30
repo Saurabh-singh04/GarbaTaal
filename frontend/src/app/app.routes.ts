@@ -49,6 +49,15 @@ export const routes: Routes = [
     title: 'Discover — GarbaTaal'
   },
   {
+    // Guarded, unlike /discover: there is nothing meaningful to preview here,
+    // and RLS would return an empty inbox to a signed-out visitor anyway.
+    path: 'matches',
+    canActivate: [authGuard, onboardedGuard],
+    loadComponent: () =>
+      import('./features/matches/matches.component').then(m => m.MatchesComponent),
+    title: 'Your people — GarbaTaal'
+  },
+  {
     path: 'suspended',
     loadComponent: () =>
       import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
