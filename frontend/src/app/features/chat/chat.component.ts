@@ -3,13 +3,14 @@ import {
   ElementRef, viewChild, effect
 } from '@angular/core';
 import { isPlatformBrowser, CommonModule, DatePipe } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ChatService } from '../../core/services/chat.service';
+import { ReportSheetComponent } from '../../shared/report-sheet.component';
 
 @Component({
   selector: 'gt-chat',
   standalone: true,
-  imports: [CommonModule, RouterLink, DatePipe],
+  imports: [CommonModule, RouterLink, DatePipe, ReportSheetComponent],
   template: `
 <div class="chat-layout">
 
@@ -24,8 +25,22 @@ import { ChatService } from '../../core/services/chat.service';
         </p>
         <p class="sub">{{ chat.isPreview() ? 'Example conversation' : 'Matched' }}</p>
       </div>
+
+      @if (!chat.isPreview()) {
+        <button type="button" class="safety" (click)="reportOpen.set(true)"
+                aria-label="Block or report">⋯</button>
+      }
     }
   </header>
+
+  @if (chat.other(); as o) {
+    <gt-report-sheet
+      [open]="reportOpen()"
+      [userId]="o.id"
+      [name]="o.first_name"
+      (blocked)="onBlocked()"
+      (closed)="reportOpen.set(false)" />
+  }
 
   @if (chat.isPreview()) {
     <p class="preview-banner">
@@ -147,6 +162,15 @@ import { ChatService } from '../../core/services/chat.service';
     .tick { color: var(--like-color); font-size: .75rem; }
     .sub  { margin: 0; font-size: .72rem; color: #a992c4; }
 
+    .safety {
+      margin-left: auto; flex: none;
+      width: 2rem; height: 2rem; border-radius: 50%;
+      border: none; background: #ffffff12; color: #cbb8e0;
+      font-size: 1.1rem; line-height: 1; cursor: pointer;
+    }
+    .safety:hover { background: #ffffff1f; color: #fff; }
+    .safety:focus-visible { outline: 2px solid var(--marigold); }
+
     .preview-banner {
       margin: 0; padding: .6rem 1rem; flex: none;
       background: #f59e0b1f; border-bottom: 1px solid #f59e0b44;
@@ -232,6 +256,7 @@ import { ChatService } from '../../core/services/chat.service';
 export class ChatComponent implements OnInit, OnDestroy {
   readonly chat = inject(ChatService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   private readonly thread = viewChild<ElementRef<HTMLElement>>('thread');
 
@@ -259,6 +284,14 @@ export class ChatComponent implements OnInit, OnDestroy {
     // Without this the Realtime channel outlives the screen and every chat
     // opened in a session keeps streaming.
     this.chat.close();
+  }
+
+  readonly reportOpen = signal(false);
+
+  /** Blocking someone you are talking to has to leave the conversation —
+   *  staying in a thread with someone you just blocked is incoherent. */
+  onBlocked(): void {
+    void this.router.navigate(['/matches']);
   }
 
   async submit(event: Event): Promise<void> {
