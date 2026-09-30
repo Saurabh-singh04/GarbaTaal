@@ -1,4 +1,5 @@
-import { Component, computed, inject, signal, OnInit } from '@angular/core';
+import { Component, computed, inject, signal, OnInit, PLATFORM_ID } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ProfileService } from '../../core/services/profile.service';
@@ -233,7 +234,13 @@ export class OnboardingComponent implements OnInit {
     return true;
   });
 
+  private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+
   async ngOnInit(): Promise<void> {
+    // Never fetch during prerendering: it would hit the network at build time,
+    // slow every build, and bake a snapshot of live data into static HTML.
+    if (!this.isBrowser) { this.loadingCities.set(false); return; }
+
     try {
       this.cities.set(await this.catalog.loadCities());
     } finally {

@@ -34,8 +34,7 @@ export const routes: Routes = [
     path: 'profile/dance',
     canActivate: [authGuard, onboardedGuard],
     loadComponent: () =>
-      import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
-    data: { heading: 'Your dance profile', note: 'Style, skill, steps, nights and grounds.' },
+      import('./features/dance-profile/dance-profile.component').then(m => m.DanceProfileComponent),
     title: 'Dance profile — GarbaTaal'
   },
   {
