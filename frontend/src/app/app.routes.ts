@@ -58,6 +58,12 @@ export const routes: Routes = [
     title: 'Your people — GarbaTaal'
   },
   {
+    path: 'profile/photos',
+    loadComponent: () =>
+      import('./features/photos/photo-manager.component').then(m => m.PhotoManagerComponent),
+    title: 'Your photos — GarbaTaal'
+  },
+  {
     path: 'chat/:matchId',
     loadComponent: () =>
       import('./features/chat/chat.component').then(m => m.ChatComponent),

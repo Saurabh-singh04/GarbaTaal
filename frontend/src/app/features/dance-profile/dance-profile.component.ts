@@ -2,6 +2,7 @@ import { Component, OnInit, computed, inject, signal, PLATFORM_ID } from '@angul
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { PreferencesService } from '../../core/services/preferences.service';
 import { ProfileService } from '../../core/services/profile.service';
 import { CatalogService, Area } from '../../core/services/catalog.service';
@@ -20,12 +21,15 @@ import { environment } from '../../../environments/environment';
 @Component({
   selector: 'gt-dance-profile',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <main class="container dance">
       <header>
         <h1>Your dance profile</h1>
         <p class="hint">This is what we match on. The more you fill in, the better your matches.</p>
+        <a routerLink="/profile/photos" class="photos-link">
+          📷 Your photos →
+        </a>
       </header>
 
       <!-- ── Nights: the single most important field ───────────────────── -->
@@ -190,6 +194,14 @@ import { environment } from '../../../environments/environment';
     </main>
   `,
   styles: [`
+    .photos-link {
+      display: inline-block; margin-top: .75rem;
+      font-size: .9rem; font-weight: 600;
+      color: var(--primary, #c2410c); text-decoration: none;
+    }
+    .photos-link:hover { text-decoration: underline; }
+    .photos-link:focus-visible { outline: 2px solid #f59e0b; outline-offset: 2px; }
+
     .dance { padding: 2rem 16px 4rem; }
     header { margin-bottom: 1.5rem; }
     section { margin-bottom: 1.25rem; }
