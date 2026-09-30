@@ -4,8 +4,8 @@
 export const environment = {
   production: true,
 
-  supabaseUrl: 'https://YOUR_PROJECT.supabase.co',
-  supabaseAnonKey: 'YOUR_ANON_KEY',
+  supabaseUrl: 'https://ufnnymmxocwdlnzmhcpv.supabase.co',
+  supabaseAnonKey: 'sb_publishable_1SclEhGFKeM7CXF5MsB4nA_INMJqHsP',
 
   apiBaseUrl: 'https://garbataal-api.onrender.com',
 

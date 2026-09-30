@@ -23,7 +23,19 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run -d --name "$NAME" -e POSTGRES_PASSWORD=test -p "$PORT":5432 \
   postgis/postgis:16-3.4 >/dev/null
 
-echo -n "→ waiting for readiness"
+# The postgis image runs a TEMPORARY server while its init scripts execute, then
+# shuts it down and starts the real one. pg_isready answers "ready" during that
+# window, so polling it alone connects to a server that is about to disappear —
+# which surfaces as "FATAL: the database system is shutting down" partway through
+# a migration, or a bogus "extension already exists". Wait for the init marker
+# first, then for readiness.
+echo -n "→ waiting for init to finish"
+for _ in $(seq 1 90); do
+  if docker logs "$NAME" 2>&1 | grep -q "PostgreSQL init process complete"; then break; fi
+  echo -n "."; sleep 1
+done
+
+echo -n " then for readiness"
 for _ in $(seq 1 60); do
   if docker exec "$NAME" pg_isready -U postgres >/dev/null 2>&1; then break; fi
   echo -n "."; sleep 1
@@ -50,6 +62,7 @@ select '    ' || count(*) || ' tables' from pg_tables where schemaname = 'public
 \echo '  RLS coverage (any row here is a table with RLS OFF — must be empty):'
 select '    ' || tablename from pg_tables
  where schemaname = 'public'
+   and tablename <> 'spatial_ref_sys'   -- PostGIS's own table; not ours to secure
    and tablename not in (select relname from pg_class where relrowsecurity);
 \echo '  bitmask helper:'
 select '    shared_nights(0b111000000, 0b011000000) = ' || shared_nights(448, 192);

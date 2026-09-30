@@ -12,8 +12,8 @@
 export const environment = {
   production: false,
 
-  supabaseUrl: 'https://YOUR_PROJECT.supabase.co',
-  supabaseAnonKey: 'YOUR_ANON_KEY',
+  supabaseUrl: 'https://ufnnymmxocwdlnzmhcpv.supabase.co',
+  supabaseAnonKey: 'sb_publishable_1SclEhGFKeM7CXF5MsB4nA_INMJqHsP',
 
   apiBaseUrl: 'http://localhost:5000',
 

@@ -58,6 +58,7 @@ jobs:
           MISSING=$(psql -h localhost -U postgres -d postgres -tAc "
             select tablename from pg_tables
              where schemaname = 'public'
+               and tablename <> 'spatial_ref_sys'
                and tablename not in (select relname from pg_class where relrowsecurity);")
           if [ -n "$MISSING" ]; then
             echo "::error::Tables without RLS: $MISSING"
