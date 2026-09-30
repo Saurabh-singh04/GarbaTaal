@@ -39,11 +39,29 @@ builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(DatabaseUrl.ToNpgsql(
 // with private chat it would mean anyone can read anyone's messages by changing
 // a string. Every request here carries a per-user token instead.
 // ─────────────────────────────────────────────────────────────────────────────
+// This project signs tokens with ASYMMETRIC keys (ECC P-256), so there is no
+// shared signing secret on this server — only public keys fetched from
+// Supabase's JWKS endpoint. Nothing here is worth leaking, and Supabase can
+// rotate keys without a redeploy.
+//
+// SUPABASE_JWT_SECRET is still honoured if present, purely to keep validating
+// tokens issued before the switch to asymmetric keys. Once those have expired
+// it can be removed.
 var supabaseUrl = Environment.GetEnvironmentVariable("SUPABASE_URL") ?? string.Empty;
-var jwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET") ?? string.Empty;
+var legacyJwtSecret = Environment.GetEnvironmentVariable("SUPABASE_JWT_SECRET") ?? string.Empty;
+var authEnabled = !string.IsNullOrWhiteSpace(supabaseUrl);
 
-if (!string.IsNullOrWhiteSpace(jwtSecret))
+if (authEnabled)
 {
+    // Built once, here, so the resolver closure below captures a single instance
+    // instead of constructing a container per request.
+    var jwks = new SupabaseJwks(
+        supabaseUrl,
+        LoggerFactory.Create(b => b.AddConsole()).CreateLogger<SupabaseJwks>(),
+        legacyJwtSecret);
+
+    builder.Services.AddSingleton(jwks);
+
     builder.Services
         .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
@@ -56,7 +74,6 @@ if (!string.IsNullOrWhiteSpace(jwtSecret))
                 ValidAudience = "authenticated",
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
                 ClockSkew = TimeSpan.FromMinutes(2),
 
                 // Without this, short claim names are remapped to legacy WS-Federation
@@ -64,6 +81,13 @@ if (!string.IsNullOrWhiteSpace(jwtSecret))
                 // Same trap GoogleTokenValidator hit in the ResumeMatcher backend.
                 NameClaimType = "sub"
             };
+
+            // Keys are resolved per request, not at startup: a cold-started
+            // container must not reject every request because it could not reach
+            // Supabase during boot. The resolver also folds in the legacy HS256
+            // key when one is configured.
+            options.TokenValidationParameters.IssuerSigningKeyResolver = jwks.Resolve;
+
             options.MapInboundClaims = false;
         });
 
@@ -155,7 +179,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("Frontend");
 app.UseRateLimiter();
 
-if (!string.IsNullOrWhiteSpace(jwtSecret))
+if (authEnabled)
 {
     app.UseAuthentication();
     app.UseAuthorization();
