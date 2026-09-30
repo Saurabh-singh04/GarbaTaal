@@ -90,7 +90,18 @@ create table if not exists areas (
   unique (city_id, slug)
 );
 
-create index if not exists areas_location_idx on areas using gist (location);
+-- Guarded on the column, not just the index. On a database created before
+-- areas.location existed, `create table if not exists areas` above skips
+-- silently and this would fail on a column that is not there yet — 0005 adds
+-- it. `if not exists` protects against a duplicate index, never a missing
+-- column, and that difference is what makes a re-paste fail.
+do $$ begin
+  if exists (select 1 from information_schema.columns
+              where table_name = 'areas' and column_name = 'location')
+  then
+    create index if not exists areas_location_idx on areas using gist (location);
+  end if;
+end $$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -175,7 +186,13 @@ create table if not exists availability (
 );
 
 create index if not exists availability_nights_idx on availability (nights_mask) where nights_mask > 0;
-create index if not exists availability_areas_idx  on availability using gin (area_ids);
+do $$ begin
+  if exists (select 1 from information_schema.columns
+              where table_name = 'availability' and column_name = 'area_ids')
+  then
+    create index if not exists availability_areas_idx on availability using gin (area_ids);
+  end if;
+end $$;
 
 create table if not exists devices (
   id          uuid primary key default uuid_generate_v4(),
