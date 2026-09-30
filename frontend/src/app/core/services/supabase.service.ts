@@ -67,6 +67,29 @@ export class SupabaseService {
     });
   }
 
+  /**
+   * Sign in with an ID token from Google Identity Services — the same flow
+   * ResumeMatcher uses, where Google's own button hands back a credential in
+   * the page and nothing navigates away.
+   *
+   * Two things this buys over the redirect above. The account chooser shows
+   * OUR app name rather than the project's supabase.co hostname, which is the
+   * single most trust-damaging thing a signed-out visitor can see. And the
+   * user never leaves the page, so a half-finished onboarding survives.
+   *
+   * Unlike ResumeMatcher, the token is handed to Supabase rather than to our
+   * own API: Supabase verifies it against Google's keys and mints the session
+   * that RLS needs. Every policy keys off auth.uid(), so a token minted
+   * anywhere else would leave the browser able to read nothing.
+   */
+  signInWithGoogleIdToken(idToken: string, nonce: string) {
+    return this.client.auth.signInWithIdToken({
+      provider: 'google',
+      token: idToken,
+      nonce
+    });
+  }
+
   async signOut(): Promise<void> {
     if (!this.isBrowser) return;
     await this.client.auth.signOut();

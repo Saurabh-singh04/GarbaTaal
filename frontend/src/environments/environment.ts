@@ -15,6 +15,11 @@ export const environment = {
   supabaseUrl: 'https://ufnnymmxocwdlnzmhcpv.supabase.co',
   supabaseAnonKey: 'sb_publishable_1SclEhGFKeM7CXF5MsB4nA_INMJqHsP',
 
+  // Google Identity Services client id — public by design, exactly like
+  // ResumeMatcher's environment.ts. It is an identifier, not a secret; the
+  // client SECRET never appears in this folder.
+  googleClientId: 'REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com',
+
   apiBaseUrl: 'http://localhost:5000',
 
   // key_id is public — it reaches the Razorpay checkout widget by design.
