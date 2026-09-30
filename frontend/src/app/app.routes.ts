@@ -49,13 +49,19 @@ export const routes: Routes = [
     title: 'Discover — GarbaTaal'
   },
   {
-    // Guarded, unlike /discover: there is nothing meaningful to preview here,
-    // and RLS would return an empty inbox to a signed-out visitor anyway.
+    // Ungated, like /discover. Signed out it renders a labelled example so the
+    // whole product can be walked through before anyone commits to an account;
+    // RLS returns nothing real to an anonymous client either way.
     path: 'matches',
-    canActivate: [authGuard, onboardedGuard],
     loadComponent: () =>
       import('./features/matches/matches.component').then(m => m.MatchesComponent),
     title: 'Your people — GarbaTaal'
+  },
+  {
+    path: 'chat/:matchId',
+    loadComponent: () =>
+      import('./features/chat/chat.component').then(m => m.ChatComponent),
+    title: 'Chat — GarbaTaal'
   },
   {
     path: 'suspended',

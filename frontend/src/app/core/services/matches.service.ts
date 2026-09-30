@@ -60,13 +60,27 @@ export class MatchesService {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
+  /** True when showing illustrative rows to a signed-out visitor. */
+  readonly isPreview = signal(false);
+
   /** Drives the nav badge. Requests are what need a decision. */
   readonly pendingCount = computed(() => this.incoming().length);
 
   async load(): Promise<void> {
     const me = this.supabase.session()?.user?.id;
-    if (!me) return;
 
+    // Signed out: render a labelled example so the screen can be judged
+    // without an account. These are never shown to a signed-in user — see
+    // the note in DiscoveryService about why that line matters.
+    if (!me) {
+      this.isPreview.set(true);
+      this.incoming.set(SAMPLE_INCOMING);
+      this.matches.set(SAMPLE_MATCHES);
+      this.outgoing.set(SAMPLE_OUTGOING);
+      return;
+    }
+
+    this.isPreview.set(false);
     this.loading.set(true);
     this.error.set(null);
 
@@ -260,3 +274,56 @@ export class MatchesService {
 function unknownPerson(id: string): MiniProfile {
   return { id, first_name: 'Someone', age: null, photo_url: null, is_verified: false };
 }
+
+// ── Preview data ──────────────────────────────────────────────────────────
+// Signed-out only, and labelled in the UI.
+
+const hoursFromNow = (h: number) =>
+  new Date(Date.now() + h * 3_600_000).toISOString();
+const hoursAgo = (h: number) =>
+  new Date(Date.now() - h * 3_600_000).toISOString();
+
+const SAMPLE_INCOMING: IncomingRequest[] = [
+  {
+    id: 'sample-req-1',
+    from: { id: 'sample-1', first_name: 'Meera', age: 24, photo_url: null, is_verified: true },
+    note: 'We both have nights 4 and 7 — and you are in Satellite too!',
+    created_at: hoursAgo(3),
+    expires_at: hoursFromNow(45)
+  },
+  {
+    id: 'sample-req-2',
+    from: { id: 'sample-2', first_name: 'Aarav', age: 26, photo_url: null, is_verified: false },
+    note: null,
+    created_at: hoursAgo(20),
+    expires_at: hoursFromNow(28)
+  }
+];
+
+const SAMPLE_MATCHES: MatchSummary[] = [
+  {
+    match_id: 'sample-match-1',
+    other: { id: 'sample-3', first_name: 'Riya', age: 24, photo_url: null, is_verified: true },
+    created_at: hoursAgo(26),
+    last_message: 'Shall we plan for night 4? We can meet somewhere public first',
+    last_message_at: hoursAgo(1),
+    their_turn: false
+  },
+  {
+    match_id: 'sample-match-2',
+    other: { id: 'sample-4', first_name: 'Kabir', age: 25, photo_url: null, is_verified: true },
+    created_at: hoursAgo(50),
+    last_message: 'Dodhiyu till the lights go out 😄',
+    last_message_at: hoursAgo(9),
+    their_turn: true
+  }
+];
+
+const SAMPLE_OUTGOING: OutgoingRequest[] = [
+  {
+    id: 'sample-out-1',
+    to: { id: 'sample-5', first_name: 'Pooja', age: 23, photo_url: null, is_verified: false },
+    created_at: hoursAgo(6),
+    expires_at: hoursFromNow(42)
+  }
+];

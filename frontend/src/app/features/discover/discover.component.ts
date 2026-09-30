@@ -1188,7 +1188,7 @@ export class DiscoverComponent implements OnInit {
     // Not awaited: the badge is secondary to the deck, and blocking the first
     // card on an inbox query would trade the thing people came for against a
     // number. Signed-out users skip it — RLS returns an empty inbox anyway.
-    if (this.profileService.profile()) void this.matches.load();
+    void this.matches.load();  // preview rows when signed out
   }
 
   // ─── Swipe Gestures ───────────────────────────────────────────────────────

@@ -53,7 +53,7 @@ import { environment } from '../../../environments/environment';
         <span class="hero__line">Your Navratri.</span>
       </h1>
       <p class="hero__lede">
-        GarbaTaal connects you with dance partners matched by your nights, your grounds,
+        GarbaTaal connects you with dance partners matched by your nights, your area,
         and how you actually dance — not just a photo. Across major Garba cities in India.
       </p>
       <div class="hero__actions">
@@ -78,7 +78,7 @@ import { environment } from '../../../environments/environment';
     <div class="hero__stage">
       <img
         class="hero__couple"
-        src="/garba-couple.jpg"
+        src="/garba-couple.webp"
         alt="A couple dancing Dandiya under festive lights during Navratri"
         width="600"
         height="800"
@@ -91,7 +91,7 @@ import { environment } from '../../../environments/environment';
       <!-- Floating reason chips -->
       <div class="hero__reason-chips" aria-hidden="true">
         <span class="reason-chip">🌙 Nights 4 &amp; 7 matched</span>
-        <span class="reason-chip">🏟️ Same Garba ground</span>
+        <span class="reason-chip">📍 Both in Satellite</span>
         <span class="reason-chip">💃 Dodhiyu &amp; 3-Taali pro</span>
       </div>
     </div>
@@ -131,7 +131,7 @@ import { environment } from '../../../environments/environment';
         <h2>Endless WhatsApp groups.<br>Awkward solo arrivals.<br>Mismatched dance styles.</h2>
         <p>
           You love Dodhiyu at fast tempo. They only know 2-Taali.
-          You have ground passes for nights 3, 5, and 8. Your friends are resting those nights.
+          You are free on nights 3, 5 and 8. Your friends are resting those nights.
           GarbaTaal eliminates the guesswork by matching you on real festival parameters.
         </p>
         <button class="btn-outline" type="button" (click)="signIn()">Create your dance profile →</button>
@@ -178,8 +178,8 @@ import { environment } from '../../../environments/environment';
           <div class="flow-step__line"></div>
         </div>
         <div class="flow-step__body">
-          <h3>Set your dance profile &amp; grounds</h3>
-          <p>Select your style (Garba, Dandiya, or both), skill level, tempo preference, and the specific nights &amp; grounds you're attending.</p>
+          <h3>Set your dance profile &amp; nights</h3>
+          <p>Select your style (Garba, Dandiya, or both), skill level, tempo preference, the nights you are free, and how far across your city you will travel.</p>
         </div>
       </div>
       <div class="flow-step">
@@ -210,8 +210,8 @@ import { environment } from '../../../environments/environment';
       </div>
       <div class="diff-card">
         <div class="diff-card__icon">🏟️</div>
-        <h3>Ground-anchored</h3>
-        <p>Choose your favorite local Garba grounds. Dancers attending your grounds appear at the top of your discovery deck.</p>
+        <h3>Neighbourhood-first</h3>
+        <p>Set your area and how far you will travel. Dancers close to you come first, because people actually turn up for someone ten minutes away.</p>
       </div>
       <div class="diff-card">
         <div class="diff-card__icon">💃</div>
@@ -226,12 +226,12 @@ import { environment } from '../../../environments/environment';
       <div class="diff-card">
         <div class="diff-card__icon">📍</div>
         <h3>Strictly public places</h3>
-        <p>Plan cards let you pick a designated landmark inside a public ground — never personal addresses or live location pins.</p>
+        <p>Plan cards let the two of you agree on a public landmark — never personal addresses, never live location.</p>
       </div>
       <div class="diff-card">
         <div class="diff-card__icon">💡</div>
         <h3>Transparent match reasons</h3>
-        <p>Every card clearly explains the match: "Shares 4 nights · Bhavani Ground · Both know Dodhiyu." No confusing algorithms.</p>
+        <p>Every card says why: “Shares 4 nights · Also in Satellite · Both know Dodhiyu.” No mystery algorithm.</p>
       </div>
     </div>
   </div>
@@ -300,7 +300,7 @@ import { environment } from '../../../environments/environment';
         <div class="safety-item__icon">📍</div>
         <div>
           <h3>No GPS or location tracking</h3>
-          <p>We never track where you are. Coordination is done strictly by selecting public grounds and meeting points.</p>
+          <p>We never track where you are. The finest location we store is your area — precise enough to match on, useless for finding you.</p>
         </div>
       </div>
       <div class="safety-item">
@@ -347,8 +347,8 @@ import { environment } from '../../../environments/environment';
         <ul class="plan-card__features">
           <li><span class="check">✓</span> 10 initial swipes, 5 daily thereafter</li>
           <li><span class="check">✓</span> Full chat access with mutual matches</li>
-          <li><span class="check">✓</span> 9-night calendar &amp; ground selector</li>
-          <li><span class="check">✓</span> Coordinate meeting points at grounds</li>
+          <li><span class="check">✓</span> 9-night calendar &amp; travel radius</li>
+          <li><span class="check">✓</span> Agree a public meeting point in chat</li>
           <li><span class="check">✓</span> Complete safety &amp; blocking tools</li>
         </ul>
         <button class="plan-btn plan-btn--outline" type="button" (click)="signIn()">Start free</button>
@@ -1424,7 +1424,7 @@ export class LandingComponent implements OnInit {
     { icon: '⚡', text: 'Fast & Traditional Tempos' },
     { icon: '🌙', text: '9 Festive Nights' },
     { icon: '🥁', text: 'Hinch & Sanedo' },
-    { icon: '🏟️', text: 'Ground Coordination' },
+    { icon: '📍', text: 'Area Matching' },
     { icon: '✨', text: 'Popatiyu & Trikoniya' },
     { icon: '👥', text: 'Solo & Group Circles' },
     { icon: '🎵', text: 'Find Your Rhythm' },

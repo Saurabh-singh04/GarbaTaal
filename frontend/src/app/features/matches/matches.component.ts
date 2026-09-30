@@ -42,6 +42,13 @@ type Tab = 'requests' | 'matches' | 'sent';
     </button>
   </nav>
 
+  @if (svc.isPreview()) {
+    <p class="preview-banner">
+      These are examples, not real people.
+      <a routerLink="/">Sign in</a> to see who actually wants to dance with you.
+    </p>
+  }
+
   @if (svc.error(); as err) {
     <p class="error" role="alert">{{ err }}</p>
   }
@@ -288,6 +295,14 @@ type Tab = 'requests' | 'matches' | 'sent';
       margin: 1.5rem 1rem 0; font-size: .8rem;
       color: #a992c4; text-align: center; line-height: 1.5;
     }
+
+    .preview-banner {
+      margin: 0 1rem 1rem; padding: .6rem .75rem;
+      background: #f59e0b1f; border: 1px solid #f59e0b44;
+      border-radius: .6rem; font-size: .8rem;
+      text-align: center; color: #ffe9bd; line-height: 1.5;
+    }
+    .preview-banner a { color: var(--marigold); }
 
     .error {
       margin: 0 1rem 1rem; padding: .75rem;
