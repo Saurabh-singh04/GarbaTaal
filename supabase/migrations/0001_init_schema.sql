@@ -11,7 +11,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 
 create extension if not exists "uuid-ossp";
-create extension if not exists postgis;      -- venue/user proximity ("near me")
+create extension if not exists postgis;      -- area proximity ("near me")
 
 -- ── Enums ────────────────────────────────────────────────────────────────
 -- Enums over text+check: they cost 4 bytes instead of a string per row, and
@@ -60,7 +60,13 @@ end $$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- CATALOG — cities, areas, venues. Public read, admin write.
+-- CATALOG — cities and areas. Public read, admin write.
+--
+-- There is deliberately no venues/grounds table. GarbaTaal matches people by
+-- where they are, not by which event they bought a ticket to: no listings, no
+-- ticketing, no organiser relationship. That keeps us out of event-ticketing
+-- regulation and off the "we sell access to an event" framing entirely.
+-- Proximity comes from areas + the PostGIS point on profiles.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 create table if not exists cities (
@@ -77,29 +83,14 @@ create table if not exists areas (
   city_id     integer not null references cities(id) on delete cascade,
   name        text not null,
   slug        text not null,
+  -- Area centroid, not a user's position. Coarse by construction: the finest
+  -- location this product ever stores is "Satellite, Ahmedabad", which is
+  -- precise enough to match on and useless for following someone home.
+  location    geography(point, 4326),
   unique (city_id, slug)
 );
 
-create table if not exists venues (
-  id            serial primary key,
-  city_id       integer not null references cities(id) on delete cascade,
-  area_id       integer references areas(id) on delete set null,
-  name          text not null,
-  slug          text not null unique,
-  address       text,
-  location      geography(point, 4326),      -- PostGIS: enables ST_DWithin "near me"
-  organizer     text,
-  pass_price_inr integer,
-  nights_mask   integer not null default 511, -- 511 = 0b111111111 = all 9 nights
-  -- B2B fields. is_featured is what a sponsoring venue pays for.
-  is_featured   boolean not null default false,
-  is_claimed    boolean not null default false,
-  claimed_by    uuid references auth.users(id) on delete set null,
-  created_at    timestamptz not null default now()
-);
-
-create index if not exists venues_city_idx     on venues (city_id, area_id);
-create index if not exists venues_location_idx on venues using gist (location);
+create index if not exists areas_location_idx on areas using gist (location);
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -167,15 +158,24 @@ create table if not exists preferences (
   updated_at   timestamptz not null default now()
 );
 
--- Which of the 9 nights, and where. nights_mask bit N = night N.
+-- Which of the 9 nights, and how far they will travel. nights_mask bit N = night N.
 create table if not exists availability (
   user_id     uuid primary key references profiles(id) on delete cascade,
   nights_mask integer not null default 0 check (nights_mask between 0 and 511),
-  venue_ids   integer[] not null default '{}',
+
+  -- Areas this person is willing to dance in. Empty means "my own area only",
+  -- which is the safe default — we never widen someone's reach for them.
+  area_ids    integer[] not null default '{}',
+
+  -- How far they will travel, in km. Bounded at 50 because a 200 km "match"
+  -- is not a match, it is a number that makes the deck look fuller.
+  travel_km   smallint not null default 10 check (travel_km between 1 and 50),
+
   updated_at  timestamptz not null default now()
 );
 
 create index if not exists availability_nights_idx on availability (nights_mask) where nights_mask > 0;
+create index if not exists availability_areas_idx  on availability using gin (area_ids);
 
 create table if not exists devices (
   id          uuid primary key default uuid_generate_v4(),
@@ -279,17 +279,19 @@ create table if not exists messages (
 
 create index if not exists messages_thread_idx on messages (match_id, created_at desc);
 
--- Meeting plans: ground + time + a PUBLIC meeting point. Never live location,
--- never GPS. This is the safety posture and the off-platform retention play
--- in one feature.
+-- Meeting plans: area + time + a PUBLIC meeting point the pair agree on
+-- themselves. We do not name or recommend the place — the two of them decide
+-- where they are going, and we only record enough that each can tell a friend.
+-- Never live location, never GPS.
 create table if not exists plans (
   id            uuid primary key default uuid_generate_v4(),
   match_id      uuid not null references matches(id) on delete cascade,
   proposed_by   uuid not null references profiles(id) on delete cascade,
-  venue_id      integer not null references venues(id),
+  area_id       integer not null references areas(id),
   night_number  smallint not null check (night_number between 1 and 9),
   meet_at       timestamptz not null,
-  meeting_point text not null,               -- "main gate", "food stall row"
+  -- Free text, written by the users. "main gate", "the chai stall on the corner".
+  meeting_point text not null check (char_length(meeting_point) between 3 and 120),
   is_confirmed  boolean not null default false,
   created_at    timestamptz not null default now()
 );

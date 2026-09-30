@@ -305,14 +305,17 @@ import { maskToNights } from '../../core/utils/nights';
             </div>
           </div>
 
-          <div class="sheet-section">
-            <h4>Preferred Grounds</h4>
-            <div class="grounds-list">
-              @for (venue of detail.availability.venue_names; track venue) {
-                <span class="ground-item">🏟️ {{ venue }}</span>
-              }
+          @if (detail.availability.area_name) {
+            <div class="sheet-section">
+              <h4>Where</h4>
+              <div class="grounds-list">
+                <span class="ground-item">📍 {{ detail.availability.area_name }}</span>
+                <span class="ground-item">
+                  🚗 Travels up to {{ detail.availability.travel_km }} km
+                </span>
+              </div>
             </div>
-          </div>
+          }
 
           <div class="sheet-section">
             <h4>Intent</h4>

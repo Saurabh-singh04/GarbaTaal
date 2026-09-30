@@ -130,7 +130,7 @@ describe('DiscoveryService', () => {
             provide: PreferencesService,
             useValue: {
               // nights_mask 0 overlaps with nobody, so no ranking can help.
-              availability: signal({ user_id: 'u1', nights_mask: 0, venue_ids: [] }),
+              availability: signal({ user_id: 'u1', nights_mask: 0, area_ids: [], travel_km: 10 }),
               preferences: signal(null)
             }
           }
@@ -141,6 +141,81 @@ describe('DiscoveryService', () => {
       await s.loadDeck();
 
       expect(s.deckState()).toBe('no_nights');
+    });
+  });
+
+  // ── Location affinity ────────────────────────────────────────────────────
+  // This is the product. The user's stated motive is "on the basis of the
+  // location user get the partner match", so these assertions are the spec.
+  //
+  // It mirrors location_affinity() in supabase/migrations/0003. If the two
+  // ever disagree, the cached deck and the live deck rank differently and the
+  // same two people are near-neighbours on one screen and strangers on the next.
+  describe('locationAffinity', () => {
+    // Private by design: nothing outside the service should be able to
+    // recompute someone's reach. Tested through a cast rather than widened.
+    const affinity = (myProfile: unknown, myAvail: unknown, prof: unknown, pAvail: unknown) =>
+      (service as unknown as {
+        locationAffinity: (a: unknown, b: unknown, c: unknown, d: unknown) => number;
+      }).locationAffinity(myProfile, myAvail, prof, pAvail);
+
+    const me = { city_id: 1, area_id: 10 };
+    const noAreas = { area_ids: [], travel_km: 10 };
+
+    it('scores a different city as zero', () => {
+      // Nobody crosses cities for a garba night. A cross-city card is a card
+      // that can never become an evening.
+      expect(affinity(me, noAreas, { city_id: 2, area_id: 10 }, noAreas)).toBe(0);
+    });
+
+    it('scores the same area highest', () => {
+      expect(affinity(me, noAreas, { city_id: 1, area_id: 10 }, noAreas)).toBe(1);
+    });
+
+    it('ranks a mutual travel overlap just below the same area', () => {
+      const mine = { area_ids: [20], travel_km: 15 };
+      const theirs = { area_ids: [10], travel_km: 15 };
+      expect(affinity(me, mine, { city_id: 1, area_id: 20 }, theirs)).toBe(0.85);
+    });
+
+    it('ranks a one-way reach below a mutual one', () => {
+      // I would travel to them; they would not travel to me. Worth showing,
+      // but it must not outrank a pair who would both make the trip.
+      const mine = { area_ids: [20], travel_km: 20 };
+      const theirs = { area_ids: [], travel_km: 5 };
+      const oneWay = affinity(me, mine, { city_id: 1, area_id: 20 }, theirs);
+      const mutual = affinity(me, mine, { city_id: 1, area_id: 20 }, { area_ids: [10], travel_km: 20 });
+
+      expect(oneWay).toBe(0.6);
+      expect(oneWay).toBeLessThan(mutual);
+    });
+
+    it('still scores same-city strangers above zero', () => {
+      // In a thin city this is the difference between a deck and a blank
+      // screen, and same-city is a true statement about them.
+      expect(affinity(me, noAreas, { city_id: 1, area_id: 99 }, noAreas)).toBe(0.3);
+    });
+
+    it('is symmetric', () => {
+      // A ranks B exactly as B ranks A. Without this, one of the pair sees the
+      // other near the top of the deck and never appears in theirs.
+      const a = { city_id: 1, area_id: 10 };
+      const b = { city_id: 1, area_id: 20 };
+      const aAvail = { area_ids: [20], travel_km: 15 };
+      const bAvail = { area_ids: [10], travel_km: 15 };
+
+      expect(affinity(a, aAvail, b, bAvail)).toBe(affinity(b, bAvail, a, aAvail));
+    });
+
+    it('survives a candidate who has never set availability', () => {
+      // Most real rows look like this for the first few days after launch.
+      expect(affinity(me, noAreas, { city_id: 1, area_id: 10 }, null)).toBe(1);
+      expect(affinity(me, null, { city_id: 1, area_id: 99 }, null)).toBe(0.3);
+    });
+
+    it('scores a missing profile as zero rather than throwing', () => {
+      expect(affinity(null, noAreas, { city_id: 1, area_id: 10 }, noAreas)).toBe(0);
+      expect(affinity(me, noAreas, null, noAreas)).toBe(0);
     });
   });
 });

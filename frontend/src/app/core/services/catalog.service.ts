@@ -3,16 +3,14 @@ import { SupabaseService } from './supabase.service';
 
 export interface City { id: number; name: string; state: string; slug: string; is_live: boolean; }
 export interface Area { id: number; city_id: number; name: string; slug: string; }
-export interface Venue {
-  id: number; city_id: number; area_id: number | null;
-  name: string; slug: string; address: string | null;
-  organizer: string | null; pass_price_inr: number | null;
-  nights_mask: number; is_featured: boolean;
-}
 
 /**
- * Cities, areas and venues. Readable without signing in, because the
- * prerendered /garba-partner/<city> SEO pages are built with no session.
+ * Cities and areas. Readable without signing in, because the prerendered
+ * /garba-partner/<city> SEO pages are built with no session.
+ *
+ * There is no venue catalog on purpose. GarbaTaal matches people by where they
+ * are, not by which event they are attending — we list no grounds, sell no
+ * tickets and take no organiser money.
  *
  * Cached in memory for the session — this data changes a few times a year and
  * refetching it on every screen wastes the free tier's egress budget.
@@ -23,7 +21,6 @@ export class CatalogService {
 
   readonly cities = signal<City[]>([]);
   private readonly areaCache = new Map<number, Area[]>();
-  private readonly venueCache = new Map<number, Venue[]>();
 
   async loadCities(): Promise<City[]> {
     if (this.cities().length) return this.cities();
@@ -59,22 +56,10 @@ export class CatalogService {
     return areas;
   }
 
-  async venuesFor(cityId: number): Promise<Venue[]> {
-    const cached = this.venueCache.get(cityId);
-    if (cached) return cached;
-
-    const { data, error } = await this.supabase.db
-      .from('venues')
-      .select('*')
-      .eq('city_id', cityId)
-      // Sponsored grounds first — this ordering is the thing a venue pays for.
-      .order('is_featured', { ascending: false })
-      .order('name');
-
-    if (error) throw error;
-
-    const venues = (data ?? []) as Venue[];
-    this.venueCache.set(cityId, venues);
-    return venues;
+  /** Area name for display, e.g. "Satellite". Null if the id is unknown. */
+  async areaName(cityId: number, areaId: number | null): Promise<string | null> {
+    if (areaId === null) return null;
+    const areas = await this.areasFor(cityId);
+    return areas.find((a) => a.id === areaId)?.name ?? null;
   }
 }

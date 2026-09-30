@@ -15,8 +15,8 @@
 grant usage on schema public to anon, authenticated, service_role;
 
 -- Anonymous: only the public catalog, and only for reading. This is what the
--- prerendered city/venue SEO pages are built from.
-grant select on cities, areas, venues to anon;
+-- prerendered /garba-partner/<city> SEO pages are built from.
+grant select on cities, areas to anon;
 
 -- Signed-in users. RLS narrows every one of these to their own rows.
 grant select, insert, update, delete on
@@ -25,7 +25,7 @@ grant select, insert, update, delete on
 to authenticated;
 
 grant select on
-  cities, areas, venues, deck_cache, requests, matches,
+  cities, areas, deck_cache, requests, matches,
   orders, entitlements, daily_quota
 to authenticated;
 
@@ -40,4 +40,5 @@ grant all on all sequences in schema public to service_role;
 grant execute on function send_request(uuid, text)        to authenticated;
 grant execute on function respond_to_request(uuid, boolean) to authenticated;
 grant execute on function shared_nights(integer, integer)  to authenticated, anon;
+grant execute on function location_affinity(uuid, uuid)    to authenticated;
 grant execute on function expire_old_requests()            to service_role;

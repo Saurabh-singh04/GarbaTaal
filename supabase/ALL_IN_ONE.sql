@@ -33,7 +33,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 
 create extension if not exists "uuid-ossp";
-create extension if not exists postgis;      -- venue/user proximity ("near me")
+create extension if not exists postgis;      -- area proximity ("near me")
 
 -- ── Enums ────────────────────────────────────────────────────────────────
 -- Enums over text+check: they cost 4 bytes instead of a string per row, and
@@ -82,7 +82,13 @@ end $$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- CATALOG — cities, areas, venues. Public read, admin write.
+-- CATALOG — cities and areas. Public read, admin write.
+--
+-- There is deliberately no venues/grounds table. GarbaTaal matches people by
+-- where they are, not by which event they bought a ticket to: no listings, no
+-- ticketing, no organiser relationship. That keeps us out of event-ticketing
+-- regulation and off the "we sell access to an event" framing entirely.
+-- Proximity comes from areas + the PostGIS point on profiles.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 create table if not exists cities (
@@ -99,29 +105,14 @@ create table if not exists areas (
   city_id     integer not null references cities(id) on delete cascade,
   name        text not null,
   slug        text not null,
+  -- Area centroid, not a user's position. Coarse by construction: the finest
+  -- location this product ever stores is "Satellite, Ahmedabad", which is
+  -- precise enough to match on and useless for following someone home.
+  location    geography(point, 4326),
   unique (city_id, slug)
 );
 
-create table if not exists venues (
-  id            serial primary key,
-  city_id       integer not null references cities(id) on delete cascade,
-  area_id       integer references areas(id) on delete set null,
-  name          text not null,
-  slug          text not null unique,
-  address       text,
-  location      geography(point, 4326),      -- PostGIS: enables ST_DWithin "near me"
-  organizer     text,
-  pass_price_inr integer,
-  nights_mask   integer not null default 511, -- 511 = 0b111111111 = all 9 nights
-  -- B2B fields. is_featured is what a sponsoring venue pays for.
-  is_featured   boolean not null default false,
-  is_claimed    boolean not null default false,
-  claimed_by    uuid references auth.users(id) on delete set null,
-  created_at    timestamptz not null default now()
-);
-
-create index if not exists venues_city_idx     on venues (city_id, area_id);
-create index if not exists venues_location_idx on venues using gist (location);
+create index if not exists areas_location_idx on areas using gist (location);
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -189,15 +180,24 @@ create table if not exists preferences (
   updated_at   timestamptz not null default now()
 );
 
--- Which of the 9 nights, and where. nights_mask bit N = night N.
+-- Which of the 9 nights, and how far they will travel. nights_mask bit N = night N.
 create table if not exists availability (
   user_id     uuid primary key references profiles(id) on delete cascade,
   nights_mask integer not null default 0 check (nights_mask between 0 and 511),
-  venue_ids   integer[] not null default '{}',
+
+  -- Areas this person is willing to dance in. Empty means "my own area only",
+  -- which is the safe default — we never widen someone's reach for them.
+  area_ids    integer[] not null default '{}',
+
+  -- How far they will travel, in km. Bounded at 50 because a 200 km "match"
+  -- is not a match, it is a number that makes the deck look fuller.
+  travel_km   smallint not null default 10 check (travel_km between 1 and 50),
+
   updated_at  timestamptz not null default now()
 );
 
 create index if not exists availability_nights_idx on availability (nights_mask) where nights_mask > 0;
+create index if not exists availability_areas_idx  on availability using gin (area_ids);
 
 create table if not exists devices (
   id          uuid primary key default uuid_generate_v4(),
@@ -301,17 +301,19 @@ create table if not exists messages (
 
 create index if not exists messages_thread_idx on messages (match_id, created_at desc);
 
--- Meeting plans: ground + time + a PUBLIC meeting point. Never live location,
--- never GPS. This is the safety posture and the off-platform retention play
--- in one feature.
+-- Meeting plans: area + time + a PUBLIC meeting point the pair agree on
+-- themselves. We do not name or recommend the place — the two of them decide
+-- where they are going, and we only record enough that each can tell a friend.
+-- Never live location, never GPS.
 create table if not exists plans (
   id            uuid primary key default uuid_generate_v4(),
   match_id      uuid not null references matches(id) on delete cascade,
   proposed_by   uuid not null references profiles(id) on delete cascade,
-  venue_id      integer not null references venues(id),
+  area_id       integer not null references areas(id),
   night_number  smallint not null check (night_number between 1 and 9),
   meet_at       timestamptz not null,
-  meeting_point text not null,               -- "main gate", "food stall row"
+  -- Free text, written by the users. "main gate", "the chai stall on the corner".
+  meeting_point text not null check (char_length(meeting_point) between 3 and 120),
   is_confirmed  boolean not null default false,
   created_at    timestamptz not null default now()
 );
@@ -439,7 +441,6 @@ create table if not exists contact_share_log (
 
 alter table cities            enable row level security;
 alter table areas             enable row level security;
-alter table venues            enable row level security;
 alter table profiles          enable row level security;
 alter table photos            enable row level security;
 alter table preferences       enable row level security;
@@ -503,8 +504,6 @@ drop policy if exists catalog_read_cities on cities;
 create policy catalog_read_cities on cities for select using (true);
 drop policy if exists catalog_read_areas on areas;
 create policy catalog_read_areas on areas  for select using (true);
-drop policy if exists catalog_read_venues on venues;
-create policy catalog_read_venues on venues for select using (true);
 
 
 -- ── Profiles ─────────────────────────────────────────────────────────────
@@ -675,6 +674,80 @@ create policy reports_read_own on reports
 create or replace function shared_nights(a integer, b integer)
 returns integer language sql immutable as $$
   select bit_count((a & b)::bit(9));
+$$;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Location affinity — how well two people's geography lines up, 0.0 to 1.0
+--
+-- This is the core of the product. We do not match on which event someone
+-- booked; we match on where they are and how far they are willing to go. It
+-- replaces what used to be a "same venue" check, which quietly required us to
+-- run a venue directory we have no business running.
+--
+-- Returns 0 when they are outside EITHER person's stated travel radius, so a
+-- man setting 50 km cannot reach a woman who set 5 km. The stricter radius
+-- always wins; that asymmetry is the point.
+-- ═══════════════════════════════════════════════════════════════════════════
+create or replace function location_affinity(a uuid, b uuid)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  pa profiles%rowtype;
+  pb profiles%rowtype;
+  va availability%rowtype;
+  vb availability%rowtype;
+  dist_km    numeric;
+  limit_km   numeric;
+begin
+  select * into pa from profiles where id = a;
+  select * into pb from profiles where id = b;
+  if not found or pa.id is null then return 0; end if;
+
+  -- Different city is a hard no. Nobody travels between cities for a Garba
+  -- night, and pretending otherwise is how a deck fills up with noise.
+  if pa.city_id is distinct from pb.city_id then
+    return 0;
+  end if;
+
+  select * into va from availability where user_id = a;
+  select * into vb from availability where user_id = b;
+
+  -- The tighter of the two radii governs. Defaults to 10 km if either has
+  -- not set one yet.
+  limit_km := least(coalesce(va.travel_km, 10), coalesce(vb.travel_km, 10));
+
+  -- Same area: as good as it gets, no distance maths needed. This is also the
+  -- path that works before anyone has a PostGIS point, which is most users.
+  if pa.area_id is not null and pa.area_id = pb.area_id then
+    return 1.0;
+  end if;
+
+  -- Each has said they will travel to the other's area.
+  if pa.area_id is not null and pb.area_id is not null
+     and pb.area_id = any(coalesce(va.area_ids, '{}'))
+     and pa.area_id = any(coalesce(vb.area_ids, '{}'))
+  then
+    return 0.85;
+  end if;
+
+  -- Fall back to real distance between area centroids.
+  if pa.location is not null and pb.location is not null then
+    dist_km := st_distance(pa.location, pb.location) / 1000.0;
+    if dist_km > limit_km then
+      return 0;
+    end if;
+    -- Linear decay across the radius: touching at 1.0, edge of range at 0.2.
+    return round((1.0 - (dist_km / limit_km) * 0.8)::numeric, 3);
+  end if;
+
+  -- Same city, nothing more specific known. Weak but not zero.
+  return 0.3;
+end;
 $$;
 
 
@@ -967,8 +1040,8 @@ $$;
 grant usage on schema public to anon, authenticated, service_role;
 
 -- Anonymous: only the public catalog, and only for reading. This is what the
--- prerendered city/venue SEO pages are built from.
-grant select on cities, areas, venues to anon;
+-- prerendered /garba-partner/<city> SEO pages are built from.
+grant select on cities, areas to anon;
 
 -- Signed-in users. RLS narrows every one of these to their own rows.
 grant select, insert, update, delete on
@@ -977,7 +1050,7 @@ grant select, insert, update, delete on
 to authenticated;
 
 grant select on
-  cities, areas, venues, deck_cache, requests, matches,
+  cities, areas, deck_cache, requests, matches,
   orders, entitlements, daily_quota
 to authenticated;
 
@@ -992,6 +1065,7 @@ grant all on all sequences in schema public to service_role;
 grant execute on function send_request(uuid, text)        to authenticated;
 grant execute on function respond_to_request(uuid, boolean) to authenticated;
 grant execute on function shared_nights(integer, integer)  to authenticated, anon;
+grant execute on function location_affinity(uuid, uuid)    to authenticated;
 grant execute on function expire_old_requests()            to service_role;
 
 
@@ -1005,7 +1079,7 @@ grant execute on function expire_old_requests()            to service_role;
 -- Tiering via cities.is_live, which the app already respects (CatalogService
 -- filters on it, and onboarding only offers live cities):
 --
---   Tier A  is_live = true   launch markets, seeded with areas and venues
+--   Tier A  is_live = true   launch markets, seeded with their areas
 --   Tier B  is_live = false  real garba culture, thinner data — fast follow
 --   Tier C  is_live = false  SEO capture + waitlist; flip to true when density
 --                            arrives
@@ -1013,6 +1087,12 @@ grant execute on function expire_old_requests()            to service_role;
 -- Ahmedabad / Gandhinagar / Vadodara / Surat are deliberately NOT live. The
 -- incumbent holds indexed city pages there; fighting for those four first
 -- wastes the one advantage we have, which is that the rest of India is open.
+--
+-- areas.location is deliberately left NULL. Distance-based scoring needs real
+-- centroids, and 85 coordinates guessed from memory would be wrong by a few km
+-- each — inside a 10 km radius that silently produces wrong matches, which is
+-- worse than no coordinates at all. Until they are sourced, location_affinity()
+-- falls back to same-area and same-city scoring, both of which are exact.
 --
 -- Idempotent: safe to re-run.
 -- ═══════════════════════════════════════════════════════════════════════════

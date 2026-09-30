@@ -12,7 +12,6 @@
 
 alter table cities            enable row level security;
 alter table areas             enable row level security;
-alter table venues            enable row level security;
 alter table profiles          enable row level security;
 alter table photos            enable row level security;
 alter table preferences       enable row level security;
@@ -76,8 +75,6 @@ drop policy if exists catalog_read_cities on cities;
 create policy catalog_read_cities on cities for select using (true);
 drop policy if exists catalog_read_areas on areas;
 create policy catalog_read_areas on areas  for select using (true);
-drop policy if exists catalog_read_venues on venues;
-create policy catalog_read_venues on venues for select using (true);
 
 
 -- ── Profiles ─────────────────────────────────────────────────────────────

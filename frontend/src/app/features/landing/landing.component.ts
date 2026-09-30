@@ -188,7 +188,7 @@ import { environment } from '../../../environments/environment';
         </div>
         <div class="flow-step__body">
           <h3>Swipe, match &amp; coordinate</h3>
-          <p>Every profile highlights why you match. When there is mutual interest, chat opens to agree on a public meeting point inside the venue.</p>
+          <p>Every profile highlights why you match. When there is mutual interest, chat opens so the two of you can agree on a public place to meet.</p>
         </div>
       </div>
     </div>
@@ -225,7 +225,7 @@ import { environment } from '../../../environments/environment';
       </div>
       <div class="diff-card">
         <div class="diff-card__icon">📍</div>
-        <h3>Strictly public venues</h3>
+        <h3>Strictly public places</h3>
         <p>Plan cards let you pick a designated landmark inside a public ground — never personal addresses or live location pins.</p>
       </div>
       <div class="diff-card">
@@ -448,7 +448,7 @@ import { environment } from '../../../environments/environment';
           <span class="nav__mark" aria-hidden="true">ગ</span>
           <span class="nav__name">GarbaTaal</span>
         </div>
-        <p>India's dedicated festival dance partner &amp; crew coordination platform.<br>Matched by rhythm, venue, and availability.</p>
+        <p>India's dedicated festival dance partner &amp; crew coordination platform.<br>Matched by rhythm, area, and availability.</p>
       </div>
       <nav class="footer__links" aria-label="Footer links">
         <div class="footer__col">
@@ -1435,11 +1435,11 @@ export class LandingComponent implements OnInit {
   readonly faqs = [
     {
       q: 'How is GarbaTaal different from typical matchmaking apps?',
-      a: 'GarbaTaal is engineered specifically around Garba & Dandiya culture. Rather than shallow swiping, we match dancers on real festival logistics: which specific nights you plan to attend, which Garba venues you go to, your preferred tempo (traditional or Dodhiyu), skill level, and shared dance steps. It is a festival coordination platform first.'
+      a: 'GarbaTaal is engineered specifically around Garba & Dandiya culture. Rather than shallow swiping, we match dancers on real festival logistics: which specific nights you plan to attend, which part of your city you are in and how far you will travel, your preferred tempo (traditional or Dodhiyu), skill level, and shared dance steps. It is a festival coordination platform first.'
     },
     {
       q: 'Is GarbaTaal available across all cities in India?',
-      a: 'Yes. GarbaTaal is open to dancers attending Navratri events across India — including Ahmedabad, Vadodara, Surat, Rajkot, Mumbai, Indore, Jaipur, Pune, Delhi NCR, and Bengaluru. You simply select your city, area, and venue.'
+      a: 'Yes. GarbaTaal is open to dancers attending Navratri events across India — including Ahmedabad, Vadodara, Surat, Rajkot, Mumbai, Indore, Jaipur, Pune, Delhi NCR, and Bengaluru. You simply select your city and area, and tell us how far you are willing to travel.'
     },
     {
       q: 'Does GarbaTaal charge or provide "partners on rent"?',
@@ -1459,7 +1459,7 @@ export class LandingComponent implements OnInit {
     },
     {
       q: 'How does GarbaTaal protect female dancers?',
-      a: 'Safety is central to the platform: sign-in is managed via Google (no phone number published), plans are restricted to public venue landmarks (never live GPS tracking), chat includes automatic moderation against unsolicited contact sharing, and members can enable "verified-only" message filters.'
+      a: 'Safety is central to the platform: sign-in is managed via Google (no phone number published), plans are restricted to public landmarks the two of you agree on (never live GPS tracking), chat includes automatic moderation against unsolicited contact sharing, and members can enable "verified-only" message filters.'
     },
     {
       q: 'When are the dates for Sharad Navratri 2026?',

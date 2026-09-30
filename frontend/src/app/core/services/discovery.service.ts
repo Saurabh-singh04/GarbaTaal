@@ -2,6 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { ProfileService } from './profile.service';
 import { PreferencesService } from './preferences.service';
+import { CatalogService } from './catalog.service';
 import {
   DeckCandidate,
   SwipeResult,
@@ -19,6 +20,7 @@ export class DiscoveryService {
   private readonly supabase = inject(SupabaseService);
   private readonly profileService = inject(ProfileService);
   private readonly prefsService = inject(PreferencesService);
+  private readonly catalog = inject(CatalogService);
 
   readonly deck = signal<DeckCandidate[]>([]);
   readonly loading = signal(false);
@@ -64,7 +66,6 @@ export class DiscoveryService {
       const myPrefs = this.prefsService.preferences();
 
       const myNightsMask = myAvail?.nights_mask ?? 511; // default to all nights if unset
-      const myVenueIds = new Set(myAvail?.venue_ids ?? []);
       const myLookingFor = new Set(myProfile?.looking_for ?? ['female', 'male']);
 
       // 2. Fetch IDs already swiped by me
@@ -121,37 +122,86 @@ export class DiscoveryService {
         }
       }
 
-      // 4. If deck_cache had no candidates, query profiles directly
-      if (candidates.length === 0) {
+      // 4. If deck_cache had no candidates, query profiles directly.
+      //
+      // Scoped to the user's own city. Matching is the whole product and it is
+      // geographic: two people who cannot physically reach the same garba are
+      // not candidates, however well their dance profiles line up.
+      if (candidates.length === 0 && myProfile?.city_id) {
         const { data: others, error: othersErr } = await this.supabase.db
           .from('profiles')
           .select('*')
           .neq('id', userId)
+          .eq('city_id', myProfile.city_id)
           .eq('is_banned', false)
           .eq('is_paused', false)
           .limit(25);
 
         if (!othersErr && others) {
-          for (const prof of others) {
-            if (swipedIds.has(prof.id)) continue;
-            // Filter by looking_for if configured
-            if (myLookingFor.size > 0 && !myLookingFor.has(prof.gender)) continue;
+          const shortlist = others.filter(
+            (p) =>
+              !swipedIds.has(p.id) &&
+              (myLookingFor.size === 0 || myLookingFor.has(p.gender))
+          );
 
-            const [{ data: pPrefs }, { data: pAvail }] = await Promise.all([
-              this.supabase.db.from('preferences').select('*').eq('user_id', prof.id).maybeSingle(),
-              this.supabase.db.from('availability').select('*').eq('user_id', prof.id).maybeSingle()
-            ]);
+          // Two queries for the whole shortlist, not two per candidate. The
+          // previous version issued 2N round trips inside the loop, which on a
+          // 25-card deck is 50 sequential requests before the first card paints.
+          const ids = shortlist.map((p) => p.id);
+          const [prefsRes, availRes, areas] = await Promise.all([
+            ids.length
+              ? this.supabase.db.from('preferences').select('*').in('user_id', ids)
+              : Promise.resolve({ data: [] as any[] }),
+            ids.length
+              ? this.supabase.db.from('availability').select('*').in('user_id', ids)
+              : Promise.resolve({ data: [] as any[] }),
+            this.catalog.areasFor(myProfile.city_id).catch(() => [])
+          ]);
+
+          const prefsById = new Map((prefsRes.data ?? []).map((r: any) => [r.user_id, r]));
+          const availById = new Map((availRes.data ?? []).map((r: any) => [r.user_id, r]));
+          const areaNameById = new Map(areas.map((a) => [a.id, a.name]));
+
+          const scored: Array<{ card: DeckCandidate; affinity: number }> = [];
+
+          for (const prof of shortlist) {
+            const pPrefs = prefsById.get(prof.id) ?? null;
+            const pAvail = availById.get(prof.id) ?? null;
+
+            // Out of reach for either person: drop it rather than show a card
+            // that cannot turn into an evening.
+            const affinity = this.locationAffinity(myProfile, myAvail, prof, pAvail);
+            if (affinity === 0) continue;
 
             const reasons = this.generateReasons(
               myNightsMask,
-              myVenueIds,
+              myProfile,
+              myAvail,
               myPrefs?.steps ?? [],
+              prof,
+              pAvail,
               pPrefs,
-              pAvail
+              areaNameById
             );
 
-            candidates.push(this.buildCandidate(prof, pPrefs, pAvail, reasons));
+            scored.push({
+              affinity,
+              card: this.buildCandidate(
+                prof,
+                pPrefs,
+                pAvail,
+                reasons,
+                undefined,
+                areaNameById.get(prof.area_id) ?? null
+              )
+            });
           }
+
+          // Closest first. Within a city, "nearby" beats "same steps" — people
+          // reliably turn up for someone ten minutes away, and rarely for a
+          // perfect dance match across town.
+          scored.sort((a, b) => b.affinity - a.affinity);
+          candidates.push(...scored.map((s) => s.card));
         }
       }
 
@@ -262,7 +312,8 @@ export class DiscoveryService {
     prefs: any,
     avail: any,
     reasons: string[],
-    score?: number
+    score?: number,
+    areaName?: string | null
   ): DeckCandidate {
     const age = prof.date_of_birth
       ? Math.floor((Date.now() - new Date(prof.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
@@ -287,19 +338,68 @@ export class DiscoveryService {
       },
       availability: {
         nights_mask: avail?.nights_mask ?? 0,
-        venue_names: ['Garba Ground']
+        area_name: areaName ?? null,
+        travel_km: avail?.travel_km ?? 10
       },
       reasons: reasons.length > 0 ? reasons : ['🌙 Shares festival nights', '💃 Dances Garba'],
       score
     };
   }
 
+  /**
+   * How well two people's geography lines up, 0 to 1. Mirrors the SQL
+   * location_affinity() in 0003 so the client-side fallback deck ranks the
+   * same way the cron-built deck_cache does.
+   *
+   * Returns 0 when they are out of range for EITHER person — the tighter of
+   * the two travel radii governs, so a man who set 50 km cannot reach a woman
+   * who set 5. That asymmetry is deliberate and is a safety property, not a
+   * tuning knob.
+   */
+  private locationAffinity(myProfile: any, myAvail: any, prof: any, pAvail: any): number {
+    if (!myProfile || !prof) return 0;
+    if (myProfile.city_id !== prof.city_id) return 0;
+
+    // Same area: as good as it gets, and it works before anyone has
+    // coordinates — which today is everyone.
+    if (myProfile.area_id != null && myProfile.area_id === prof.area_id) return 1;
+
+    const myAreas: number[] = myAvail?.area_ids ?? [];
+    const theirAreas: number[] = pAvail?.area_ids ?? [];
+
+    // Each has said they will travel to where the other is.
+    if (
+      myProfile.area_id != null &&
+      prof.area_id != null &&
+      myAreas.includes(prof.area_id) &&
+      theirAreas.includes(myProfile.area_id)
+    ) {
+      return 0.85;
+    }
+
+    // One-way reach: they would come to me, or I would go to them, but not
+    // both. Still worth showing, ranked below a mutual overlap.
+    if (
+      (prof.area_id != null && myAreas.includes(prof.area_id)) ||
+      (myProfile.area_id != null && theirAreas.includes(myProfile.area_id))
+    ) {
+      return 0.6;
+    }
+
+    // Same city, nothing more specific known. Weak, but not nothing — in a
+    // thin city this is the difference between a deck and an empty screen.
+    return 0.3;
+  }
+
   private generateReasons(
     myNMask: number,
-    myVenues: Set<number>,
+    myProfile: any,
+    myAvail: any,
     mySteps: GarbaStep[],
+    prof: any,
+    pAvail: any,
     pPrefs: any,
-    pAvail: any
+    areaNameById: Map<number, string>
   ): string[] {
     const reasons: string[] = [];
     const sharedN = sharedNightCount(myNMask, pAvail?.nights_mask ?? 0);
@@ -307,9 +407,20 @@ export class DiscoveryService {
       reasons.push(`🌙 ${sharedN} night${sharedN > 1 ? 's' : ''} in common`);
     }
 
-    const candVenues: number[] = pAvail?.venue_ids ?? [];
-    if (candVenues.some(v => myVenues.has(v))) {
-      reasons.push('🏟️ Same Garba venue');
+    // Location, stated as a fact about distance rather than about a venue.
+    // "Also in Satellite" is checkable; "same Garba venue" was a claim we had
+    // no way to know was true.
+    const areaName = prof?.area_id != null ? areaNameById.get(prof.area_id) : null;
+    if (myProfile?.area_id != null && myProfile.area_id === prof?.area_id && areaName) {
+      reasons.push(`📍 Also in ${areaName}`);
+    } else if (areaName) {
+      const myAreas: number[] = myAvail?.area_ids ?? [];
+      const theirAreas: number[] = pAvail?.area_ids ?? [];
+      if (myAreas.includes(prof.area_id) || theirAreas.includes(myProfile?.area_id)) {
+        reasons.push(`📍 ${areaName} — within your range`);
+      } else {
+        reasons.push(`📍 ${areaName}`);
+      }
     }
 
     const candSteps: GarbaStep[] = pPrefs?.steps ?? [];
@@ -352,9 +463,10 @@ export class DiscoveryService {
         },
         availability: {
           nights_mask: 493, // Nights 1, 3, 5, 7, 8, 9
-          venue_names: ['Shankus Garba Ground', 'Bhavani Complex']
+          area_name: 'Satellite',
+          travel_km: 8
         },
-        reasons: ['🌙 6 nights in common', '🏟️ Same Garba venue', '💃 Both fast Dodhiyu']
+        reasons: ['🌙 6 nights in common', '📍 Also in Satellite', '💃 Both fast Dodhiyu']
       },
       {
         id: 'sample-2',
@@ -376,7 +488,8 @@ export class DiscoveryService {
         },
         availability: {
           nights_mask: 218,
-          venue_names: ['Heritage Garba Lawns']
+          area_name: 'Bopal',
+          travel_km: 12
         },
         reasons: ['🌙 4 nights in common', '👏 Both know 3-Taali', '🤝 Dance + friends']
       },
@@ -400,7 +513,8 @@ export class DiscoveryService {
         },
         availability: {
           nights_mask: 440,
-          venue_names: ['City Palace Ground']
+          area_name: 'Vastrapur',
+          travel_km: 5
         },
         reasons: ['🌙 5 nights in common', '🥢 Both Dandiya fans', '⚡ Medium tempo']
       },
@@ -424,9 +538,10 @@ export class DiscoveryService {
         },
         availability: {
           nights_mask: 511, // All 9 nights
-          venue_names: ['United Way Garba', 'City Lawns']
+          area_name: 'Satellite',
+          travel_km: 15
         },
-        reasons: ['🌙 All 9 nights active', '⭐ Both Dodhiyu Pros', '🏟️ Same Garba venue']
+        reasons: ['🌙 All 9 nights active', '⭐ Both Dodhiyu Pros', '📍 Also in Satellite']
       }
     ];
   }

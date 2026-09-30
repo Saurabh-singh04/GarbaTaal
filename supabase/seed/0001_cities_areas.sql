@@ -4,7 +4,7 @@
 -- Tiering via cities.is_live, which the app already respects (CatalogService
 -- filters on it, and onboarding only offers live cities):
 --
---   Tier A  is_live = true   launch markets, seeded with areas and venues
+--   Tier A  is_live = true   launch markets, seeded with their areas
 --   Tier B  is_live = false  real garba culture, thinner data — fast follow
 --   Tier C  is_live = false  SEO capture + waitlist; flip to true when density
 --                            arrives
@@ -12,6 +12,12 @@
 -- Ahmedabad / Gandhinagar / Vadodara / Surat are deliberately NOT live. The
 -- incumbent holds indexed city pages there; fighting for those four first
 -- wastes the one advantage we have, which is that the rest of India is open.
+--
+-- areas.location is deliberately left NULL. Distance-based scoring needs real
+-- centroids, and 85 coordinates guessed from memory would be wrong by a few km
+-- each — inside a 10 km radius that silently produces wrong matches, which is
+-- worse than no coordinates at all. Until they are sourced, location_affinity()
+-- falls back to same-area and same-city scoring, both of which are exact.
 --
 -- Idempotent: safe to re-run.
 -- ═══════════════════════════════════════════════════════════════════════════

@@ -58,7 +58,11 @@ export class PreferencesService {
     this.preferences.set(data as Preferences);
   }
 
-  async saveAvailability(nightsMask: number, venueIds: number[]): Promise<void> {
+  async saveAvailability(
+    nightsMask: number,
+    areaIds: number[],
+    travelKm: number
+  ): Promise<void> {
     const userId = this.supabase.session()?.user?.id;
     if (!userId) throw new Error('not_signed_in');
 
@@ -66,12 +70,17 @@ export class PreferencesService {
     // fail the schema's CHECK (nights_mask between 0 and 511).
     const mask = nightsMask & ALL_NIGHTS_MASK;
 
+    // Clamp to the schema's CHECK (travel_km between 1 and 50) rather than
+    // letting the database reject the whole save over a slider edge case.
+    const km = Math.min(50, Math.max(1, Math.round(travelKm)));
+
     const { data, error } = await this.supabase.db
       .from('availability')
       .upsert({
         user_id: userId,
         nights_mask: mask,
-        venue_ids: venueIds,
+        area_ids: areaIds,
+        travel_km: km,
         updated_at: new Date().toISOString()
       })
       .select()

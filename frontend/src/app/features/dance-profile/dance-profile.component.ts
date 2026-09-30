@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { PreferencesService } from '../../core/services/preferences.service';
 import { ProfileService } from '../../core/services/profile.service';
-import { CatalogService, Venue } from '../../core/services/catalog.service';
+import { CatalogService, Area } from '../../core/services/catalog.service';
 import {
   DanceStyle, SkillLevel, TempoPref, UserIntent, GarbaStep,
   STYLE_LABELS, SKILL_LABELS, TEMPO_LABELS, STEP_LABELS, INTENT_LABELS
@@ -56,22 +56,37 @@ import { environment } from '../../../environments/environment';
         }
       </section>
 
-      <!-- ── Grounds ───────────────────────────────────────────────────── -->
-      @if (venues().length) {
+      <!-- ── Where you'll travel ───────────────────────────────────────── -->
+      @if (areas().length) {
         <section class="card">
-          <h2>Which grounds?</h2>
-          <p class="hint">People going to the same ground are shown to you first.</p>
+          <h2>How far will you go?</h2>
+          <p class="hint">
+            People closest to you are shown first. Pick the areas you'd actually
+            travel to — leave it empty and we'll only show you your own area.
+          </p>
+
+          <div class="field">
+            <label class="label" for="travel">Willing to travel</label>
+            <input id="travel" type="range" min="1" max="50" step="1"
+                   [value]="travelKm()"
+                   (input)="travelKm.set(+$any($event.target).value)">
+            <output class="travel-value">{{ travelKm() }} km</output>
+          </div>
 
           <div class="chip-row">
-            @for (v of venues(); track v.id) {
+            @for (a of areas(); track a.id) {
               <button type="button" class="chip"
-                      [attr.aria-pressed]="venueIds().includes(v.id)"
-                      (click)="toggleVenue(v.id)">
-                {{ v.name }}
-                @if (v.is_featured) { <span class="star" aria-label="Partner ground">★</span> }
+                      [attr.aria-pressed]="areaIds().includes(a.id)"
+                      (click)="toggleArea(a.id)">
+                {{ a.name }}
               </button>
             }
           </div>
+
+          <p class="hint quiet">
+            We never show your exact location — only your area, and only to
+            people you match with.
+          </p>
         </section>
       }
 
@@ -261,8 +276,11 @@ export class DanceProfileComponent implements OnInit {
   readonly intents: UserIntent[] = ['dance_only', 'dance_friends', 'open'];
 
   readonly nightsMask = signal(0);
-  readonly venueIds = signal<number[]>([]);
-  readonly venues = signal<Venue[]>([]);
+  readonly areaIds = signal<number[]>([]);
+  readonly areas = signal<Area[]>([]);
+  // 10 km is a realistic city-evening radius and a conservative default: we
+  // widen someone's reach only when they ask for it.
+  readonly travelKm = signal(10);
   readonly style = signal<DanceStyle>('both');
   readonly skill = signal<SkillLevel>('beginner');
   readonly tempo = signal<TempoPref>('medium');
@@ -305,8 +323,8 @@ export class DanceProfileComponent implements OnInit {
       list.includes(s) ? list.filter(x => x !== s) : [...list, s]);
   }
 
-  toggleVenue(id: number): void {
-    this.venueIds.update(list =>
+  toggleArea(id: number): void {
+    this.areaIds.update(list =>
       list.includes(id) ? list.filter(x => x !== id) : [...list, id]);
   }
 
@@ -332,12 +350,13 @@ export class DanceProfileComponent implements OnInit {
     const a = this.prefs.availability();
     if (a) {
       this.nightsMask.set(a.nights_mask);
-      this.venueIds.set(a.venue_ids ?? []);
+      this.areaIds.set(a.area_ids ?? []);
+      this.travelKm.set(a.travel_km ?? 10);
     }
 
     const cityId = this.profiles.profile()?.city_id;
     if (cityId) {
-      this.venues.set(await this.catalog.venuesFor(cityId));
+      this.areas.set(await this.catalog.areasFor(cityId));
     }
   }
 
@@ -360,7 +379,7 @@ export class DanceProfileComponent implements OnInit {
         verified_only_messages: this.verifiedOnly()
       });
 
-      await this.prefs.saveAvailability(this.nightsMask(), this.venueIds());
+      await this.prefs.saveAvailability(this.nightsMask(), this.areaIds(), this.travelKm());
 
       await this.router.navigate(['/discover']);
     } catch {

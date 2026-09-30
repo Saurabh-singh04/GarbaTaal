@@ -50,7 +50,10 @@ export interface Availability {
   user_id: string;
   /** 9-bit mask; bit N (1-indexed) = night N. See nightsToMask(). */
   nights_mask: number;
-  venue_ids: number[];
+  /** Areas this person will travel to. Empty means their own area only. */
+  area_ids: number[];
+  /** How far they will travel, 1–50 km. The tighter of two radii wins. */
+  travel_km: number;
 }
 
 /** What onboarding collects before a profile row can be written. */
@@ -130,7 +133,9 @@ export interface DeckCandidate {
   };
   availability: {
     nights_mask: number;
-    venue_names: string[];
+    /** Where they are, not where they bought a ticket. "Satellite, Ahmedabad". */
+    area_name: string | null;
+    travel_km: number;
   };
   reasons: string[];
   score?: number;

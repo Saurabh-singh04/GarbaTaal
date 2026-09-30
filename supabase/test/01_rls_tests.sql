@@ -229,6 +229,82 @@ select assert_eq(shared_nights(448, 192)::bigint, 2, 'shared_nights counts overl
 
 
 \echo ''
+\echo '── location affinity: the matching rule ──'
+
+-- Mirrors discovery.service.ts locationAffinity(). If these two drift, the
+-- cron-built deck and the live fallback deck rank the same pair differently.
+insert into areas (city_id, name, slug)
+select c.id, v.name, v.slug
+from cities c
+cross join (values ('Test Area A', 'test-area-a'), ('Test Area B', 'test-area-b')) as v(name, slug)
+where c.slug = 'rls-test-city'
+on conflict (city_id, slug) do nothing;
+
+update profiles set area_id = (select id from areas where slug = 'test-area-a')
+ where id = '11111111-1111-1111-1111-111111111111';
+update profiles set area_id = (select id from areas where slug = 'test-area-a')
+ where id = '22222222-2222-2222-2222-222222222222';
+update profiles set area_id = (select id from areas where slug = 'test-area-b')
+ where id = '33333333-3333-3333-3333-333333333333';
+
+-- Same area is the top score, and it works with no coordinates at all —
+-- which is every real row until area centroids are sourced.
+select assert_eq(
+  (location_affinity('11111111-1111-1111-1111-111111111111',
+                     '22222222-2222-2222-2222-222222222222') * 100)::bigint,
+  100, 'Same area scores 1.0');
+
+-- Different area, neither willing to travel: same city only.
+select assert_eq(
+  (location_affinity('11111111-1111-1111-1111-111111111111',
+                     '33333333-3333-3333-3333-333333333333') * 100)::bigint,
+  30, 'Different area, no stated travel, scores 0.3');
+
+-- Both say they will travel to the other's area.
+insert into availability (user_id, nights_mask, area_ids, travel_km) values
+  ('11111111-1111-1111-1111-111111111111', 511,
+   array[(select id from areas where slug = 'test-area-b')], 20),
+  ('33333333-3333-3333-3333-333333333333', 511,
+   array[(select id from areas where slug = 'test-area-a')], 20)
+on conflict (user_id) do update
+  set area_ids = excluded.area_ids, travel_km = excluded.travel_km;
+
+select assert_eq(
+  (location_affinity('11111111-1111-1111-1111-111111111111',
+                     '33333333-3333-3333-3333-333333333333') * 100)::bigint,
+  85, 'Mutual willingness to travel scores 0.85');
+
+-- Symmetry. Without it, one of a pair sees the other near the top of their
+-- deck and never appears in the other's.
+select assert_eq(
+  (location_affinity('11111111-1111-1111-1111-111111111111',
+                     '33333333-3333-3333-3333-333333333333')
+   - location_affinity('33333333-3333-3333-3333-333333333333',
+                       '11111111-1111-1111-1111-111111111111'))::bigint,
+  0, 'location_affinity is symmetric');
+
+-- Different city is a hard zero, whatever else lines up.
+do $$
+declare other_city integer; score numeric;
+begin
+  insert into cities (name, state, slug, is_live)
+  values ('RLS Other City', 'TEST', 'rls-test-city-2', false)
+  on conflict (slug) do nothing;
+  select id into other_city from cities where slug = 'rls-test-city-2';
+
+  update profiles set city_id = other_city
+   where id = '33333333-3333-3333-3333-333333333333';
+
+  select location_affinity('11111111-1111-1111-1111-111111111111',
+                           '33333333-3333-3333-3333-333333333333') into score;
+  if score <> 0 then
+    raise exception 'FAIL: cross-city pair scored %, expected 0', score;
+  end if;
+  raise notice '  ok: different city scores 0';
+end $$;
+
+
+\echo ''
 \echo '════════════════════════════════════════════'
 \echo ' ALL RLS TESTS PASSED'
 \echo '════════════════════════════════════════════'

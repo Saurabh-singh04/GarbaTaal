@@ -17,6 +17,80 @@ returns integer language sql immutable as $$
 $$;
 
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Location affinity — how well two people's geography lines up, 0.0 to 1.0
+--
+-- This is the core of the product. We do not match on which event someone
+-- booked; we match on where they are and how far they are willing to go. It
+-- replaces what used to be a "same venue" check, which quietly required us to
+-- run a venue directory we have no business running.
+--
+-- Returns 0 when they are outside EITHER person's stated travel radius, so a
+-- man setting 50 km cannot reach a woman who set 5 km. The stricter radius
+-- always wins; that asymmetry is the point.
+-- ═══════════════════════════════════════════════════════════════════════════
+create or replace function location_affinity(a uuid, b uuid)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  pa profiles%rowtype;
+  pb profiles%rowtype;
+  va availability%rowtype;
+  vb availability%rowtype;
+  dist_km    numeric;
+  limit_km   numeric;
+begin
+  select * into pa from profiles where id = a;
+  select * into pb from profiles where id = b;
+  if not found or pa.id is null then return 0; end if;
+
+  -- Different city is a hard no. Nobody travels between cities for a Garba
+  -- night, and pretending otherwise is how a deck fills up with noise.
+  if pa.city_id is distinct from pb.city_id then
+    return 0;
+  end if;
+
+  select * into va from availability where user_id = a;
+  select * into vb from availability where user_id = b;
+
+  -- The tighter of the two radii governs. Defaults to 10 km if either has
+  -- not set one yet.
+  limit_km := least(coalesce(va.travel_km, 10), coalesce(vb.travel_km, 10));
+
+  -- Same area: as good as it gets, no distance maths needed. This is also the
+  -- path that works before anyone has a PostGIS point, which is most users.
+  if pa.area_id is not null and pa.area_id = pb.area_id then
+    return 1.0;
+  end if;
+
+  -- Each has said they will travel to the other's area.
+  if pa.area_id is not null and pb.area_id is not null
+     and pb.area_id = any(coalesce(va.area_ids, '{}'))
+     and pa.area_id = any(coalesce(vb.area_ids, '{}'))
+  then
+    return 0.85;
+  end if;
+
+  -- Fall back to real distance between area centroids.
+  if pa.location is not null and pb.location is not null then
+    dist_km := st_distance(pa.location, pb.location) / 1000.0;
+    if dist_km > limit_km then
+      return 0;
+    end if;
+    -- Linear decay across the radius: touching at 1.0, edge of range at 0.2.
+    return round((1.0 - (dist_km / limit_km) * 0.8)::numeric, 3);
+  end if;
+
+  -- Same city, nothing more specific known. Weak but not zero.
+  return 0.3;
+end;
+$$;
+
+
 -- ── Does this user have an active paid pass? ─────────────────────────────
 create or replace function has_active_pass(u uuid)
 returns boolean language sql stable security definer set search_path = public as $$
