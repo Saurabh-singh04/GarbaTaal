@@ -49,16 +49,27 @@ start at the moment someone wants to pay ₹99 is a lost sale.
 ```bash
 cp .env.example .env          # then fill it in
 
-# Database — apply migrations in order
-npx supabase link --project-ref <ref>
-npx supabase db push
-
-# Backend
-cd backend && dotnet run
-
-# Frontend
+bash supabase/push.sh         # apply migrations to Supabase
+cd backend  && dotnet run
 cd frontend && npm install && npm start
 ```
+
+## How the database is verified
+
+You do **not** need Docker. Three paths, in the order you'll actually use them:
+
+| | Where it runs | When | Cost to you |
+|---|---|---|---|
+| **1. CI** ← default | GitHub's servers | Every push | Nothing. ~60–90s |
+| **2. `supabase/push.sh`** | Your Supabase project | When shipping a schema change | Nothing |
+| **3. `supabase/test/verify-migrations.sh`** | Local Docker — **optional** | Only to pre-check a risky migration | Docker must be running |
+
+CI applies all migrations to a real Postgres+PostGIS and runs the RLS suite,
+so a broken policy fails the build before it can reach anyone's data. Path 3
+exists because RLS cannot be tested against production — proving "user A
+cannot read user B's messages" means creating fake users and fake messages,
+which must never happen in the live project. Skip it unless you want the check
+before pushing.
 
 ---
 
