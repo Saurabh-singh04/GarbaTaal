@@ -123,7 +123,7 @@ create table if not exists profiles (
   location      geography(point, 4326),      -- coarse (area centroid), never live GPS
 
   bio           text check (char_length(bio) <= 150),
-  primary_photo_url text,                    -- R2 URL; free egress, unlike Supabase Storage
+  primary_photo_url text,                    -- Supabase Storage public URL; see 0006
 
   -- Denormalised hot-path flags. Every quota check reads these instead of
   -- joining entitlements — it matters when the deck is built for every user.
@@ -146,7 +146,7 @@ create index if not exists profiles_discovery_idx on profiles (city_id, area_id)
 create table if not exists photos (
   id          uuid primary key default uuid_generate_v4(),
   user_id     uuid not null references profiles(id) on delete cascade,
-  url         text not null,                 -- Cloudflare R2
+  url         text not null,                 -- Supabase Storage public URL
   position    smallint not null check (position between 1 and 4),
   is_approved boolean not null default false, -- manual review queue feeds this
   created_at  timestamptz not null default now(),

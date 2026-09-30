@@ -17,7 +17,7 @@ one first.
 | 3 | Google Cloud | Google sign-in | Free | No | 15 min |
 | 4 | Vercel | Frontend hosting | Free | No | 10 min |
 | 5 | GitHub secrets | Keepalive, backups | Free | No | 5 min |
-| 6 | Cloudflare R2 | Profile photos | Free | **Yes** | 15 min |
+| 6 | Supabase Storage | Profile photos | Free | No | none |
 | 7 | Render / Fly | .NET API | Free tier | Varies | optional |
 | 8 | Firebase FCM | Push notifications | Free | No | skip for v1 |
 
@@ -142,29 +142,36 @@ can wait for the API.
 
 ---
 
-## 6. Cloudflare R2 — photos
+## 6. Photos — Supabase Storage, not R2
 
-**Requires a card on file**, even on the free tier, because overage is
-billable. You will not be charged inside the limits.
+R2 requires a card on file even inside the free tier. It is avoidable, and
+the reason to avoid it is architectural rather than financial.
 
-Free forever: 10 GB storage · 10M reads/month · **zero egress**. Egress is
-why this beats Supabase Storage — photos are the single biggest bandwidth
-cost, and Supabase free gives only 5 GB/month total.
+Supabase Storage uploads go **straight from the browser**, authorized by the
+user's own JWT against the policies in migration 0006. ImageKit and
+Cloudinary both need a server to mint a signed upload token, which puts the
+sleeping .NET container back on a path a user waits on.
 
-If you would rather not give a card yet, start on Supabase Storage (1 GB,
-already free) and move later. Photos are small; the schema stores a URL, so
-switching is a config change.
+Free tier: 1 GB storage, and **separate** 5 GB uncached / 5 GB cached egress
+quotas — images cache well, so roughly 10 GB/month in practice.
 
-1. <https://dash.cloudflare.com> → R2 → create bucket `garbataal-photos`
-2. R2 → Manage API Tokens → create Object Read & Write token
-3. Settings → Public access → enable r2.dev subdomain (or a custom domain)
+The provider is not what decides whether this holds. Compression is:
 
 ```
-R2_ACCOUNT_ID=        R2_ACCESS_KEY_ID=     R2_SECRET_ACCESS_KEY=
-R2_BUCKET=garbataal-photos                  R2_PUBLIC_URL=
+raw phone photo   ~3 MB    1 GB = 330 photos, egress gone in an afternoon
+600x800 WebP      ~45 KB   1 GB = thousands, ~20,000 deck sessions/month
 ```
 
----
+That is ~500-1,000 active dancers through the nine nights.
+`frontend/src/app/core/utils/image.ts` does the compression; the 2 MB bucket
+ceiling is a backstop, not the plan.
+
+**Setup:** none. Migration 0006 creates the bucket and its policies when you
+paste `ALL_IN_ONE.sql`. No account, no card, no env vars.
+
+Move to ImageKit (20 GB bandwidth, 3 GB storage, no card, URL-param
+transforms) when egress becomes a real constraint. By then you will have
+revenue and a card is a non-question.
 
 ## 7. The .NET API — not on the launch path
 
