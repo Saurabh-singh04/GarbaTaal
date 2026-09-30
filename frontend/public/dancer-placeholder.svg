@@ -1,0 +1,39 @@
+<!--
+  Shown for a real profile that has no photo yet.
+
+  Deliberately abstract: a stock photograph of strangers standing in for a real
+  user is a small lie, and in this category small lies about who is real are
+  exactly what costs trust. A geometric garba circle says "no photo" honestly.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" role="img"
+     aria-label="No photo yet" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4c1d95"/>
+      <stop offset="100%" stop-color="#1d1526"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="400" height="600" fill="url(#night)"/>
+
+  <!-- Garba circle: figures around a central lamp -->
+  <g transform="translate(200 300)" fill="none" stroke="#c2410c" stroke-width="2" opacity="0.55">
+    <circle r="120"/>
+    <circle r="86" opacity="0.6"/>
+    <circle r="52" opacity="0.35"/>
+  </g>
+
+  <g transform="translate(200 300)" fill="#fb923c">
+    <circle cx="0"    cy="-120" r="9"/>
+    <circle cx="114"  cy="-37"  r="9"/>
+    <circle cx="71"   cy="97"   r="9"/>
+    <circle cx="-71"  cy="97"   r="9"/>
+    <circle cx="-114" cy="-37"  r="9"/>
+  </g>
+
+  <!-- Diya at the centre -->
+  <g transform="translate(200 300)">
+    <ellipse cx="0" cy="10" rx="20" ry="8" fill="#c2410c"/>
+    <path d="M0 -14 C 7 -5, 7 2, 0 6 C -7 2, -7 -5, 0 -14 Z" fill="#fde68a"/>
+  </g>
+</svg>

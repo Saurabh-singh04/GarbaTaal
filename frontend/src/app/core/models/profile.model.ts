@@ -105,5 +105,60 @@ export const STEP_LABELS: Record<GarbaStep, string> = {
 export const INTENT_LABELS: Record<UserIntent, string> = {
   dance_only: 'Just a dance partner',
   dance_friends: 'Dance partner + friends',
-  open: 'Open to more'
+  open: 'Open to group or solo crew'
 };
+
+/** A candidate dancer card in the discovery swipe deck. */
+export interface DeckCandidate {
+  id: string;
+  first_name: string;
+  age: number;
+  gender: Gender;
+  city_name?: string;
+  area_name?: string;
+  bio?: string | null;
+  photo_url?: string | null;
+  is_verified: boolean;
+  preferences: {
+    style: DanceStyle;
+    skill: SkillLevel;
+    tempo: TempoPref;
+    steps: GarbaStep[];
+    intent: UserIntent;
+    wants_group: boolean;
+    going_with_friends: boolean;
+  };
+  availability: {
+    nights_mask: number;
+    venue_names: string[];
+  };
+  reasons: string[];
+  score?: number;
+
+  /**
+   * True for the illustrative dancers shown in the signed-out preview.
+   *
+   * These MUST never appear in a signed-in user's deck, and the UI MUST label
+   * them. A real user who swipes on an invented person, matches, and gets
+   * nothing has a screenshot — and "the profiles are fake" is the accusation
+   * that ends apps in this category.
+   */
+  is_sample?: boolean;
+}
+
+/** Why the deck is empty. Each case needs different words, and none of them
+ *  should be papered over with invented profiles. */
+export type DeckState =
+  | 'ready'       // cards to show
+  | 'caught_up'   // seen everyone who matches — a good problem
+  | 'thin_city'   // few dancers here yet; invite friends
+  | 'no_nights';  // user hasn't picked nights, so nothing can overlap
+
+/** The result of swiping right / liking a profile. */
+export interface SwipeResult {
+  ok: boolean;
+  matched: boolean;
+  match_id?: string;
+  error?: string;
+}
+

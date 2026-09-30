@@ -11,7 +11,7 @@ export const environment = {
 
   razorpayKeyId: 'rzp_live_xxxxxxxxxx',
 
-  launchCitySlug: 'jabalpur',
+  launchCitySlug: 'all',
 
   festival: {
     name: 'Navratri 2026',

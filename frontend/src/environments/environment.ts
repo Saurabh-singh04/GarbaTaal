@@ -21,8 +21,8 @@ export const environment = {
   // key_secret stays on the server and is never referenced in this project.
   razorpayKeyId: 'rzp_test_xxxxxxxxxx',
 
-  // Launch one district at a time. Matching below local density is worthless.
-  launchCitySlug: 'jabalpur',
+  // Pan-India festival launch
+  launchCitySlug: 'all',
 
   festival: {
     name: 'Navratri 2026',

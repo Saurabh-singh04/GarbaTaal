@@ -38,11 +38,14 @@ export const routes: Routes = [
     title: 'Dance profile — GarbaTaal'
   },
   {
+    // Deliberately UNGUARDED. Signed out, this renders a labelled preview so
+    // someone can feel the product before committing — the single highest-
+    // leverage thing on a competitor's page. Real data is never at risk here:
+    // RLS returns nothing to an anonymous client, and DiscoveryService serves
+    // clearly-flagged sample dancers instead of querying for people.
     path: 'discover',
-    canActivate: [authGuard, onboardedGuard],
     loadComponent: () =>
-      import('./features/placeholder/placeholder.component').then(m => m.PlaceholderComponent),
-    data: { heading: 'Discover', note: 'Your ranked deck for tonight.' },
+      import('./features/discover/discover.component').then(m => m.DiscoverComponent),
     title: 'Discover — GarbaTaal'
   },
   {
