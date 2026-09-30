@@ -21,17 +21,26 @@ end;
 $$;
 
 -- ── Seed as superuser (bypasses RLS) ─────────────────────────────────────
-insert into cities (name, state, slug, is_live) values ('Jabalpur', 'MP', 'jabalpur', true);
+-- Its own city with a reserved slug, so these tests do not collide with the
+-- real seed in supabase/seed/. Referenced by slug below, never by a hardcoded
+-- id, because seeded rows shift the sequence.
+insert into cities (name, state, slug, is_live)
+values ('RLS Test City', 'TEST', 'rls-test-city', false)
+on conflict (slug) do nothing;
 
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'alice@test.local'),
   ('22222222-2222-2222-2222-222222222222', 'bob@test.local'),
   ('33333333-3333-3333-3333-333333333333', 'carol@test.local');
 
-insert into profiles (id, first_name, date_of_birth, gender, city_id) values
-  ('11111111-1111-1111-1111-111111111111', 'Alice', '2000-01-01', 'female', 1),
-  ('22222222-2222-2222-2222-222222222222', 'Bob',   '1999-01-01', 'male',   1),
-  ('33333333-3333-3333-3333-333333333333', 'Carol', '1998-01-01', 'female', 1);
+insert into profiles (id, first_name, date_of_birth, gender, city_id)
+select v.id, v.first_name, v.dob, v.gender, c.id
+from (values
+  ('11111111-1111-1111-1111-111111111111'::uuid, 'Alice', '2000-01-01'::date, 'female'::gender),
+  ('22222222-2222-2222-2222-222222222222'::uuid, 'Bob',   '1999-01-01'::date, 'male'::gender),
+  ('33333333-3333-3333-3333-333333333333'::uuid, 'Carol', '1998-01-01'::date, 'female'::gender)
+) as v(id, first_name, dob, gender)
+cross join (select id from cities where slug = 'rls-test-city') c;
 
 -- Alice and Bob are matched. Carol is not.
 insert into matches (id, user_low, user_high) values (
@@ -189,7 +198,8 @@ do $$
 begin
   insert into auth.users (id, email) values ('44444444-4444-4444-4444-444444444444', 'kid@test.local');
   insert into profiles (id, first_name, date_of_birth, gender, city_id)
-  values ('44444444-4444-4444-4444-444444444444', 'Kid', current_date - interval '15 years', 'male', 1);
+  select '44444444-4444-4444-4444-444444444444', 'Kid', current_date - interval '15 years', 'male', id
+  from cities where slug = 'rls-test-city';
   raise exception 'FAIL: an under-18 profile was created';
 exception
   when check_violation then raise notice '  ok: under-18 profile rejected';

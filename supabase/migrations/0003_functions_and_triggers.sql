@@ -251,6 +251,7 @@ begin
 end;
 $$;
 
+drop trigger if exists messages_policy on messages;
 create trigger messages_policy before insert on messages
   for each row execute function enforce_message_policy();
 
@@ -268,6 +269,7 @@ begin
 end;
 $$;
 
+drop trigger if exists entitlements_sync on entitlements;
 create trigger entitlements_sync after insert on entitlements
   for each row execute function sync_pass_expiry();
 

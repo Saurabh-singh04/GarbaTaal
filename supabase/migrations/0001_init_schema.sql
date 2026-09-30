@@ -17,23 +17,53 @@ create extension if not exists postgis;      -- venue/user proximity ("near me")
 -- Enums over text+check: they cost 4 bytes instead of a string per row, and
 -- a typo becomes a migration error instead of a silent bug in a WHERE clause.
 
-create type gender          as enum ('male', 'female', 'other');
-create type dance_style     as enum ('garba', 'dandiya', 'both');
-create type skill_level     as enum ('beginner', 'can_manage', 'good', 'pro');
-create type tempo_pref      as enum ('traditional', 'medium', 'fast');
-create type user_intent     as enum ('dance_only', 'dance_friends', 'open');
-create type request_status  as enum ('pending', 'accepted', 'declined', 'expired');
-create type report_status   as enum ('open', 'reviewing', 'actioned', 'dismissed');
-create type ban_kind        as enum ('shadow', 'hard');
-create type order_status    as enum ('created', 'attempted', 'paid', 'failed', 'expired', 'refunded');
-create type entitlement_kind as enum ('season_pass', 'verified_badge');
+do $$ begin
+  create type gender as enum ('male', 'female', 'other');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type dance_style as enum ('garba', 'dandiya', 'both');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type skill_level as enum ('beginner', 'can_manage', 'good', 'pro');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type tempo_pref as enum ('traditional', 'medium', 'fast');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type user_intent as enum ('dance_only', 'dance_friends', 'open');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type request_status as enum ('pending', 'accepted', 'declined', 'expired');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type report_status as enum ('open', 'reviewing', 'actioned', 'dismissed');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type ban_kind as enum ('shadow', 'hard');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type order_status as enum ('created', 'attempted', 'paid', 'failed', 'expired', 'refunded');
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  create type entitlement_kind as enum ('season_pass', 'verified_badge');
+exception when duplicate_object then null;
+end $$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- CATALOG — cities, areas, venues. Public read, admin write.
 -- ═══════════════════════════════════════════════════════════════════════════
 
-create table cities (
+create table if not exists cities (
   id          serial primary key,
   name        text not null,
   state       text not null,
@@ -42,7 +72,7 @@ create table cities (
   created_at  timestamptz not null default now()
 );
 
-create table areas (
+create table if not exists areas (
   id          serial primary key,
   city_id     integer not null references cities(id) on delete cascade,
   name        text not null,
@@ -50,7 +80,7 @@ create table areas (
   unique (city_id, slug)
 );
 
-create table venues (
+create table if not exists venues (
   id            serial primary key,
   city_id       integer not null references cities(id) on delete cascade,
   area_id       integer references areas(id) on delete set null,
@@ -68,15 +98,15 @@ create table venues (
   created_at    timestamptz not null default now()
 );
 
-create index venues_city_idx     on venues (city_id, area_id);
-create index venues_location_idx on venues using gist (location);
+create index if not exists venues_city_idx     on venues (city_id, area_id);
+create index if not exists venues_location_idx on venues using gist (location);
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- IDENTITY
 -- ═══════════════════════════════════════════════════════════════════════════
 
-create table profiles (
+create table if not exists profiles (
   -- id IS the Supabase auth user id. One row per account, no separate mapping
   -- table, and RLS policies can compare directly against auth.uid().
   id            uuid primary key references auth.users(id) on delete cascade,
@@ -108,10 +138,10 @@ create table profiles (
   constraint adult_only check (date_of_birth <= (current_date - interval '18 years'))
 );
 
-create index profiles_discovery_idx on profiles (city_id, area_id)
+create index if not exists profiles_discovery_idx on profiles (city_id, area_id)
   where is_banned = false and is_paused = false;
 
-create table photos (
+create table if not exists photos (
   id          uuid primary key default uuid_generate_v4(),
   user_id     uuid not null references profiles(id) on delete cascade,
   url         text not null,                 -- Cloudflare R2
@@ -124,7 +154,7 @@ create table photos (
 -- The dance profile. This is the differentiator — no live competitor matches
 -- on steps, skill or tempo, and it is what keeps the product dance-first
 -- rather than dating-first.
-create table preferences (
+create table if not exists preferences (
   user_id      uuid primary key references profiles(id) on delete cascade,
   style        dance_style not null default 'both',
   skill        skill_level not null default 'beginner',
@@ -138,16 +168,16 @@ create table preferences (
 );
 
 -- Which of the 9 nights, and where. nights_mask bit N = night N.
-create table availability (
+create table if not exists availability (
   user_id     uuid primary key references profiles(id) on delete cascade,
   nights_mask integer not null default 0 check (nights_mask between 0 and 511),
   venue_ids   integer[] not null default '{}',
   updated_at  timestamptz not null default now()
 );
 
-create index availability_nights_idx on availability (nights_mask) where nights_mask > 0;
+create index if not exists availability_nights_idx on availability (nights_mask) where nights_mask > 0;
 
-create table devices (
+create table if not exists devices (
   id          uuid primary key default uuid_generate_v4(),
   user_id     uuid not null references profiles(id) on delete cascade,
   fcm_token   text not null unique,
@@ -163,7 +193,7 @@ create table devices (
 -- Precomputed decks. This table is why discovery works while the .NET
 -- container is asleep: reading it is one indexed lookup, and the expensive
 -- scoring happens in a cron job three times a night.
-create table deck_cache (
+create table if not exists deck_cache (
   user_id      uuid not null references profiles(id) on delete cascade,
   candidate_id uuid not null references profiles(id) on delete cascade,
   rank         integer not null,
@@ -175,9 +205,9 @@ create table deck_cache (
   primary key (user_id, candidate_id)
 );
 
-create index deck_cache_rank_idx on deck_cache (user_id, rank);
+create index if not exists deck_cache_rank_idx on deck_cache (user_id, rank);
 
-create table swipes (
+create table if not exists swipes (
   actor_id   uuid not null references profiles(id) on delete cascade,
   target_id  uuid not null references profiles(id) on delete cascade,
   liked      boolean not null,
@@ -190,7 +220,7 @@ create table swipes (
 -- CONNECTIONS
 -- ═══════════════════════════════════════════════════════════════════════════
 
-create table requests (
+create table if not exists requests (
   id           uuid primary key default uuid_generate_v4(),
   from_user_id uuid not null references profiles(id) on delete cascade,
   to_user_id   uuid not null references profiles(id) on delete cascade,
@@ -205,12 +235,12 @@ create table requests (
   check (from_user_id <> to_user_id)
 );
 
-create index requests_inbox_idx on requests (to_user_id, status, created_at desc);
+create index if not exists requests_inbox_idx on requests (to_user_id, status, created_at desc);
 
 -- Canonical ordered pair. Two people accepting at the same instant would
 -- otherwise create two chat rooms; the CHECK + UNIQUE make that impossible
 -- at the database level, so no application lock is needed.
-create table matches (
+create table if not exists matches (
   id         uuid primary key default uuid_generate_v4(),
   user_low   uuid not null references profiles(id) on delete cascade,
   user_high  uuid not null references profiles(id) on delete cascade,
@@ -220,10 +250,10 @@ create table matches (
   unique (user_low, user_high)
 );
 
-create index matches_user_low_idx  on matches (user_low)  where is_active;
-create index matches_user_high_idx on matches (user_high) where is_active;
+create index if not exists matches_user_low_idx  on matches (user_low)  where is_active;
+create index if not exists matches_user_high_idx on matches (user_high) where is_active;
 
-create table blocks (
+create table if not exists blocks (
   blocker_id uuid not null references profiles(id) on delete cascade,
   blocked_id uuid not null references profiles(id) on delete cascade,
   created_at timestamptz not null default now(),
@@ -235,7 +265,7 @@ create table blocks (
 -- MESSAGING — delivered by Supabase Realtime, policed by triggers
 -- ═══════════════════════════════════════════════════════════════════════════
 
-create table messages (
+create table if not exists messages (
   id          uuid primary key default uuid_generate_v4(),
   match_id    uuid not null references matches(id) on delete cascade,
   sender_id   uuid not null references profiles(id) on delete cascade,
@@ -247,12 +277,12 @@ create table messages (
   created_at  timestamptz not null default now()
 );
 
-create index messages_thread_idx on messages (match_id, created_at desc);
+create index if not exists messages_thread_idx on messages (match_id, created_at desc);
 
 -- Meeting plans: ground + time + a PUBLIC meeting point. Never live location,
 -- never GPS. This is the safety posture and the off-platform retention play
 -- in one feature.
-create table plans (
+create table if not exists plans (
   id            uuid primary key default uuid_generate_v4(),
   match_id      uuid not null references matches(id) on delete cascade,
   proposed_by   uuid not null references profiles(id) on delete cascade,
@@ -269,7 +299,7 @@ create table plans (
 -- COMMERCE — ₹99 Navratri Pass
 -- ═══════════════════════════════════════════════════════════════════════════
 
-create table orders (
+create table if not exists orders (
   id                uuid primary key default uuid_generate_v4(),
   user_id           uuid not null references profiles(id) on delete cascade,
   razorpay_order_id text unique,
@@ -280,12 +310,12 @@ create table orders (
   updated_at        timestamptz not null default now()
 );
 
-create index orders_pending_idx on orders (status, created_at)
+create index if not exists orders_pending_idx on orders (status, created_at)
   where status in ('created', 'attempted');   -- the reconciler's sweep index
 
 -- The ledger. Rows, not a boolean on profiles: it gives an audit trail, makes
 -- a refund a revoke, and lets support comp a user without touching account state.
-create table entitlements (
+create table if not exists entitlements (
   id              uuid primary key default uuid_generate_v4(),
   user_id         uuid not null references profiles(id) on delete cascade,
   kind            entitlement_kind not null,
@@ -300,7 +330,7 @@ create table entitlements (
 
 -- Insert-first, process-after. A duplicate webhook delivery hits this unique
 -- index and becomes a no-op — idempotency you cannot forget to implement.
-create table webhook_events (
+create table if not exists webhook_events (
   id             uuid primary key default uuid_generate_v4(),
   provider_event_id text not null unique,
   event_type     text not null,
@@ -311,7 +341,7 @@ create table webhook_events (
 
 -- Date-keyed so there is NO nightly reset job. A missed reset on a sleeping
 -- backend would mean nobody can send requests on night four.
-create table daily_quota (
+create table if not exists daily_quota (
   user_id       uuid not null references profiles(id) on delete cascade,
   quota_date    date not null default current_date,
   requests_used smallint not null default 0,
@@ -323,7 +353,7 @@ create table daily_quota (
 -- TRUST & SAFETY
 -- ═══════════════════════════════════════════════════════════════════════════
 
-create table reports (
+create table if not exists reports (
   id            uuid primary key default uuid_generate_v4(),
   reporter_id   uuid not null references profiles(id) on delete cascade,
   reported_id   uuid not null references profiles(id) on delete cascade,
@@ -336,9 +366,9 @@ create table reports (
   check (reporter_id <> reported_id)
 );
 
-create index reports_queue_idx on reports (status, created_at);
+create index if not exists reports_queue_idx on reports (status, created_at);
 
-create table bans (
+create table if not exists bans (
   id         uuid primary key default uuid_generate_v4(),
   user_id    uuid not null references profiles(id) on delete cascade,
   kind       ban_kind not null,   -- 'shadow' preferred: they keep using an app nobody sees,
@@ -349,7 +379,7 @@ create table bans (
 );
 
 -- Append-only. No UPDATE or DELETE policy exists for this table anywhere.
-create table audit_log (
+create table if not exists audit_log (
   id         bigserial primary key,
   actor_id   uuid,
   action     text not null,
@@ -361,7 +391,7 @@ create table audit_log (
 -- Counts how many DISTINCT people a user has sent a contact detail to.
 -- One-to-one exchange is the product working; one-to-forty is the scam.
 -- That ratio, not the text itself, is the signal worth acting on.
-create table contact_share_log (
+create table if not exists contact_share_log (
   actor_id    uuid not null references profiles(id) on delete cascade,
   recipient_id uuid not null references profiles(id) on delete cascade,
   created_at  timestamptz not null default now(),

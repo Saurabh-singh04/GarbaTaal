@@ -47,9 +47,25 @@ jobs:
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q \
             -f supabase/test/00_auth_stub.sql
           for f in supabase/migrations/*.sql; do
-            echo "→ $f"
+            echo "-> $f"
             psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f "$f"
           done
+          # Apply the seed too: the RLS suite has to pass against a database that
+          # has real reference data in it, not only an empty schema. A seeded
+          # city once collided with a test fixture and only showed up by luck.
+          for f in supabase/seed/*.sql; do
+            echo "-> $f"
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f "$f"
+          done
+
+      - name: Assert migrations are re-runnable
+        env:
+          PGPASSWORD: test
+        run: |
+          # Applying everything twice must be a no-op. Someone will paste
+          # ALL_IN_ONE.sql into the SQL Editor more than once.
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f supabase/ALL_IN_ONE.sql
+          echo "Re-running all migrations + seed succeeded." 
 
       - name: Assert RLS is enabled on every table
         env:

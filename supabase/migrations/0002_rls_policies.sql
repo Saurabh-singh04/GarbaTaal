@@ -72,18 +72,23 @@ $$;
 -- ── Catalog: public, read-only ───────────────────────────────────────────
 -- Anonymous read matters: the prerendered /garba-partner/<city> SEO pages
 -- are built without a logged-in user.
+drop policy if exists catalog_read_cities on cities;
 create policy catalog_read_cities on cities for select using (true);
-create policy catalog_read_areas  on areas  for select using (true);
+drop policy if exists catalog_read_areas on areas;
+create policy catalog_read_areas on areas  for select using (true);
+drop policy if exists catalog_read_venues on venues;
 create policy catalog_read_venues on venues for select using (true);
 
 
 -- ── Profiles ─────────────────────────────────────────────────────────────
+drop policy if exists profiles_read_own on profiles;
 create policy profiles_read_own on profiles
   for select using (id = auth.uid());
 
 -- Others are visible only if not banned, not paused, and no block exists.
 -- date_of_birth is still readable here, so the client must never render it —
 -- restrict it properly with a view before launch if you expose more fields.
+drop policy if exists profiles_read_others on profiles;
 create policy profiles_read_others on profiles
   for select using (
     id <> auth.uid()
@@ -92,19 +97,23 @@ create policy profiles_read_others on profiles
     and not is_blocked_pair(auth.uid(), id)
   );
 
+drop policy if exists profiles_update_own on profiles;
 create policy profiles_update_own on profiles
   for update using (id = auth.uid()) with check (id = auth.uid());
 
+drop policy if exists profiles_insert_own on profiles;
 create policy profiles_insert_own on profiles
   for insert with check (id = auth.uid());
 
 
 -- ── Photos ───────────────────────────────────────────────────────────────
+drop policy if exists photos_own on photos;
 create policy photos_own on photos
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- Other people's photos only once a human has approved them. An unreviewed
 -- upload is never shown to anyone.
+drop policy if exists photos_read_approved on photos;
 create policy photos_read_approved on photos
   for select using (
     user_id <> auth.uid()
@@ -114,25 +123,33 @@ create policy photos_read_approved on photos
 
 
 -- ── Dance profile & availability: own write, public read ─────────────────
-create policy prefs_own   on preferences for all    using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy prefs_read  on preferences for select using (true);
-create policy avail_own   on availability for all   using (user_id = auth.uid()) with check (user_id = auth.uid());
-create policy avail_read  on availability for select using (true);
+drop policy if exists prefs_own on preferences;
+create policy prefs_own on preferences for all    using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists prefs_read on preferences;
+create policy prefs_read on preferences for select using (true);
+drop policy if exists avail_own on availability;
+create policy avail_own on availability for all   using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists avail_read on availability;
+create policy avail_read on availability for select using (true);
+drop policy if exists devices_own on devices;
 create policy devices_own on devices for all        using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 
 -- ── Deck: strictly your own ──────────────────────────────────────────────
 -- Written only by the service role (the cron deck builder).
+drop policy if exists deck_read_own on deck_cache;
 create policy deck_read_own on deck_cache
   for select using (user_id = auth.uid());
 
 
 -- ── Swipes: yours only, and never readable by the person you swiped on ───
+drop policy if exists swipes_own on swipes;
 create policy swipes_own on swipes
   for all using (actor_id = auth.uid()) with check (actor_id = auth.uid());
 
 
 -- ── Requests ─────────────────────────────────────────────────────────────
+drop policy if exists requests_read on requests;
 create policy requests_read on requests
   for select using (from_user_id = auth.uid() or to_user_id = auth.uid());
 
@@ -142,11 +159,13 @@ create policy requests_read on requests
 
 
 -- ── Matches ──────────────────────────────────────────────────────────────
+drop policy if exists matches_read on matches;
 create policy matches_read on matches
   for select using (user_low = auth.uid() or user_high = auth.uid());
 
 
 -- ── Blocks ───────────────────────────────────────────────────────────────
+drop policy if exists blocks_own on blocks;
 create policy blocks_own on blocks
   for all using (blocker_id = auth.uid()) with check (blocker_id = auth.uid());
 
@@ -154,12 +173,14 @@ create policy blocks_own on blocks
 -- ── Messages ─────────────────────────────────────────────────────────────
 -- The single most important policy in the schema. Get this wrong and every
 -- private conversation is public.
+drop policy if exists messages_read on messages;
 create policy messages_read on messages
   for select using (
     is_match_participant(match_id, auth.uid())
     and is_held = false
   );
 
+drop policy if exists messages_send on messages;
 create policy messages_send on messages
   for insert with check (
     sender_id = auth.uid()
@@ -170,14 +191,17 @@ create policy messages_send on messages
 
 
 -- ── Plans ────────────────────────────────────────────────────────────────
+drop policy if exists plans_read on plans;
 create policy plans_read on plans
   for select using (is_match_participant(match_id, auth.uid()));
 
+drop policy if exists plans_write on plans;
 create policy plans_write on plans
   for insert with check (
     proposed_by = auth.uid() and is_match_participant(match_id, auth.uid())
   );
 
+drop policy if exists plans_confirm on plans;
 create policy plans_confirm on plans
   for update using (is_match_participant(match_id, auth.uid()));
 
@@ -186,14 +210,19 @@ create policy plans_confirm on plans
 -- Orders and entitlements are written ONLY by Edge Functions and the .NET
 -- reconciler using the service role. A client that could insert an
 -- entitlement row could grant itself the ₹99 pass for free.
-create policy orders_read_own       on orders       for select using (user_id = auth.uid());
+drop policy if exists orders_read_own on orders;
+create policy orders_read_own on orders       for select using (user_id = auth.uid());
+drop policy if exists entitlements_read_own on entitlements;
 create policy entitlements_read_own on entitlements for select using (user_id = auth.uid());
-create policy quota_read_own        on daily_quota  for select using (user_id = auth.uid());
+drop policy if exists quota_read_own on daily_quota;
+create policy quota_read_own on daily_quota  for select using (user_id = auth.uid());
 
 
 -- ── Reports: file them, see your own, never see anyone else's ────────────
+drop policy if exists reports_insert on reports;
 create policy reports_insert on reports
   for insert with check (reporter_id = auth.uid());
 
+drop policy if exists reports_read_own on reports;
 create policy reports_read_own on reports
   for select using (reporter_id = auth.uid());
